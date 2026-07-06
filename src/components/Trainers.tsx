@@ -64,13 +64,17 @@ function TeamCarousel({ title, members, onBookNow, canBook = false }: TeamCarous
               <img src={member.image || "/images/fitness-logo.jpg"} alt="" />
               <div className="trainerCardBody">
                 <h3>{member.name}</h3>
-                <p>{member.specialty}</p>
-                <span className="trainerGoldRule" aria-hidden="true" />
-                <ul className="trainerCredentialList">
-                  {member.certificate && <li>{member.certificate}</li>}
-                  {member.experienceYears && <li>{member.experienceYears}</li>}
-                  <li>{member.specialty}</li>
-                </ul>
+                {member.specialty && <p>{member.specialty}</p>}
+                {(member.specialty || member.certificate || member.experienceYears) && (
+                  <span className="trainerGoldRule" aria-hidden="true" />
+                )}
+                {(member.certificate || member.experienceYears || member.specialty) && (
+                  <ul className="trainerCredentialList">
+                    {member.certificate && <li>{member.certificate}</li>}
+                    {member.experienceYears && <li>{member.experienceYears}</li>}
+                    {member.specialty && <li>{member.specialty}</li>}
+                  </ul>
+                )}
                 {canBook && (
                 <button
                   type="button"

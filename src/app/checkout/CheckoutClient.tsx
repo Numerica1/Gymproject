@@ -976,7 +976,7 @@ export default function CheckoutClient() {
                     type="tel"
                     id="esewa-id-input"
                     className="input"
-                    placeholder="98XXXXXXXX"
+                    placeholder="Phone No."
                     value={walletPhone}
                     onChange={(e) => setWalletPhone(e.target.value.replace(/\D/g, ""))}
                     maxLength={10}
@@ -1007,7 +1007,7 @@ export default function CheckoutClient() {
                     type="tel"
                     id="khalti-id-input"
                     className="input"
-                    placeholder="98XXXXXXXX"
+                    placeholder="Phone No."
                     value={walletPhone}
                     onChange={(e) => setWalletPhone(e.target.value.replace(/\D/g, ""))}
                     maxLength={10}

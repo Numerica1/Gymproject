@@ -383,7 +383,7 @@ function JoinForm() {
             <input
               type="tel"
               className={`formInput${errors.phone ? " inputError" : ""}`}
-              placeholder="e.g. 9812345678"
+              placeholder="Phone No."
               value={phone}
               maxLength={10}
               onChange={(e) => {

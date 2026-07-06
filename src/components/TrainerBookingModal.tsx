@@ -184,8 +184,10 @@ export default function TrainerBookingModal({
     }
     if (!clientPhone.trim()) {
       newErrors.clientPhone = "Phone number is required";
-    } else if (!/^[0-9]{10}$/.test(clientPhone.trim())) {
-      newErrors.clientPhone = "Enter a valid 10-digit phone number";
+    } else {
+      const stripped = clientPhone.trim().replace(/^(\+977|977)/, "").replace(/\s/g, "");
+      if (!/^[9][6-9][0-9]{8}$/.test(stripped))
+        newErrors.clientPhone = "Enter a valid 10-digit Nepali number (e.g. 9812345678).";
     }
     if (!bookingDate) newErrors.bookingDate = "Booking date is required";
 
@@ -343,11 +345,11 @@ export default function TrainerBookingModal({
                   <input
                     type="tel"
                     className={`formInput ${errors.clientPhone ? "inputError" : ""}`}
-                    placeholder="98XXXXXXXX"
+                    placeholder="Phone No."
                     value={clientPhone}
                     maxLength={10}
                     onChange={(e) => {
-                      const num = e.target.value.replace(/\D/g, "");
+                      const num = e.target.value.replace(/\D/g, "").slice(0, 10);
                       setClientPhone(num);
                       if (errors.clientPhone) setErrors((prev) => ({ ...prev, clientPhone: "" }));
                     }}

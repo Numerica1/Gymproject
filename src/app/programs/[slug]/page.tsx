@@ -156,7 +156,7 @@ function ProgramDetailContent({ program }: { program: any }) {
                   </p>
                   <div className="programSidebarActions">
                     <JoinProgramButton program={program} />
-                    <Link href="/contact" className="secondaryButton">
+                    <Link href="/contact?form=true" className="secondaryButton">
                       Inquire Now
                     </Link>
                   </div>

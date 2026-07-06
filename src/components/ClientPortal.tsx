@@ -71,7 +71,6 @@ export default function ClientPortal() {
     <section className="clientPortalPage">
       <header className="clientPortalHero">
         <div>
-          <p className="eyebrow">Client Dashboard</p>
           <h1>Welcome back, {client.name}</h1>
           <p>
             Your current package, renewal timeline, access benefits, and class

@@ -13,6 +13,7 @@ import {
 } from "react-icons/fa6";
 import { FaTimes as FaTimesReg } from "react-icons/fa";
 import { useGymReviews, type Review } from "../data/gymData";
+import { clientStorageKey } from "../data/clientPortal";
 
 const stats = [
   { icon: <FaStar />, value: "4.9/5", label: "Average Rating" },
@@ -66,6 +67,22 @@ export default function Testimonials() {
   const [reviewText, setReviewText] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  const [loggedInClientName, setLoggedInClientName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const storedClient = window.localStorage.getItem(clientStorageKey);
+      if (storedClient) {
+        try {
+          const parsed = JSON.parse(storedClient);
+          if (parsed && parsed.name) {
+            setLoggedInClientName(parsed.name);
+          }
+        } catch (e) {}
+      }
+    }
+  }, []);
+
   const approvedReviews = reviews.filter((r) => r.status === "Approved");
   const maxIndex = Math.max(0, approvedReviews.length - cardsToShow);
 
@@ -98,7 +115,7 @@ export default function Testimonials() {
 
   const handleOpenModal = () => {
     setIsModalOpen(true);
-    setName("");
+    setName(loggedInClientName || "");
     setProduct("Gym Membership");
     setRating(5);
     setReviewText("");
@@ -392,6 +409,8 @@ export default function Testimonials() {
                       onChange={(e) => setName(e.target.value)}
                       placeholder="e.g. Jane Doe"
                       required
+                      disabled={!!loggedInClientName}
+                      style={loggedInClientName ? { backgroundColor: "rgba(255,255,255,0.05)", color: "#a1a1aa", cursor: "not-allowed" } : {}}
                     />
                   </div>
                   <div className="reviewFormGroup">

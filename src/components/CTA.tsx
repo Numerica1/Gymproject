@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   FaArrowRight,
@@ -21,6 +22,13 @@ export default function CTA({ isPageHeader = false }: CTAProps) {
   const [showForm, setShowForm] = useState(false);
   const Heading = isPageHeader ? "h1" : "h2";
   const [content] = useGymSettings();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("form") === "true") {
+      setShowForm(true);
+    }
+  }, [searchParams]);
 
   if (showForm) {
     return <ContactForm />;

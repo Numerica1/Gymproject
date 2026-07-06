@@ -6080,28 +6080,31 @@ h3 {
 
 .shopGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: 22px;
-  justify-content: center;
-  justify-items: center;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 20px;
+  align-items: stretch;
 }
 
 .shopProductCard {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 320px;
-  margin: 0 auto;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--white);
-  box-shadow: 0 18px 44px rgba(32, 24, 18, 0.08);
+  box-shadow: 0 8px 24px rgba(32, 24, 18, 0.07);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.shopProductCard:hover {
+  box-shadow: 0 16px 40px rgba(32, 24, 18, 0.13);
+  transform: translateY(-2px);
 }
 
 .shopProductCard img {
   width: 100%;
-  aspect-ratio: 1.28;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
   background: #e9e2d8;
   flex-shrink: 0;
@@ -6110,8 +6113,8 @@ h3 {
 .shopProductCard > div {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
+  gap: 10px;
+  padding: 16px;
   flex-grow: 1;
 }
 
@@ -6428,6 +6431,10 @@ h3 {
   .shopHeroCart {
     width: 100%;
   }
+
+  .shopGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 620px) {
@@ -6436,9 +6443,14 @@ h3 {
     padding-bottom: 70px;
   }
 
+  .shopGrid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
   .shopProductCard > div,
   .shopCartPanel {
-    padding: 18px;
+    padding: 14px;
   }
 }
 

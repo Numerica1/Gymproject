@@ -22,13 +22,25 @@ export default function ContactForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
+  // Nepal: 10 digits, optionally prefixed with +977 or 977. Strip prefix then validate.
+  const validateNepalPhone = (value: string): string => {
+    const stripped = value.trim().replace(/^(\+977|977)/, "").replace(/\s/g, "");
+    if (!stripped) return "Phone number is required.";
+    if (!/^[9][6-9][0-9]{8}$/.test(stripped))
+      return "Enter a valid Nepali number (e.g. 9812345678 or +977 9812345678).";
+    return "";
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    const err = validateNepalPhone(phone);
+    if (err) { setPhoneError(err); return; }
     setIsSending(true);
 
     const id = generateId();
@@ -184,11 +196,20 @@ export default function ContactForm() {
                 <div className="contactInputGroup">
                   <input
                     type="tel"
-                    placeholder="Phone Number"
+                    placeholder="Phone No."
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setPhoneError(validateNepalPhone(e.target.value));
+                    }}
                     required
+                    style={phoneError ? { borderColor: "#f87171" } : {}}
                   />
+                  {phoneError && (
+                    <span style={{ fontSize: "0.75rem", color: "#f87171", marginTop: "4px", display: "block" }}>
+                      {phoneError}
+                    </span>
+                  )}
                 </div>
                 <div className="contactInputGroup">
                   <input

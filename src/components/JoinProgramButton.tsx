@@ -49,6 +49,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
   const [walletPhone, setWalletPhone] = useState("");
+  const [walletPhoneError, setWalletPhoneError] = useState("");
 
   // Credentials step states
   const [username, setUsername] = useState("");
@@ -61,6 +62,15 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [txnId, setTxnId] = useState("");
+
+  // Nepal phone: 10 digits, starts with 9 followed by 6–9, optional +977/977 prefix.
+  const validateNepalPhone = (value: string): string => {
+    const stripped = value.trim().replace(/^(\+977|977)/, "").replace(/\s/g, "");
+    if (!stripped) return "Phone number is required.";
+    if (!/^[9][6-9][0-9]{8}$/.test(stripped))
+      return "Enter a valid 10-digit Nepali number (e.g. 9812345678).";
+    return "";
+  };
 
   const basePrice = basePrices[program.slug] || 3000;
 
@@ -127,9 +137,10 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
       return;
     }
 
-    // Validate phone number (exactly 10 digits)
-    if (!/^[0-9]{10}$/.test(phone)) {
-      setFormError("Please enter a valid 10-digit phone number.");
+    // Validate phone number — Nepal: 10 digits starting with 96–99
+    const phoneErr = validateNepalPhone(phone);
+    if (phoneErr) {
+      setFormError(phoneErr);
       return;
     }
 
@@ -142,6 +153,14 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
     setCredError("");
     if (!username.trim()) { setCredError("Please choose a username."); return; }
     if (newPassword.length < 6) { setCredError("Password must be at least 6 characters."); return; }
+    const hasUppercase = /[A-Z]/.test(newPassword);
+    const hasLowercase = /[a-z]/.test(newPassword);
+    const hasDigit = /[0-9]/.test(newPassword);
+    const hasSpecialChar = /[^A-Za-z0-9]/.test(newPassword);
+    if (!hasUppercase || !hasLowercase || !hasDigit || !hasSpecialChar) {
+      setCredError("Password must be strong: include uppercase, lowercase, numbers, and special characters.");
+      return;
+    }
     if (newPassword !== confirmPassword) { setCredError("Passwords do not match."); return; }
     if (paymentOption === "online") {
       setStep("payment");
@@ -608,11 +627,12 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                         type="tel"
                         className="joinFormInput"
                         value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                        placeholder="e.g. 98XXXXXXXX"
-                        maxLength={10}
+                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 13))}
+                        placeholder="Phone No."
+                        maxLength={13}
                         required
                       />
+                      <span style={{ fontSize: "0.75rem", color: "#71717a" }}>10-digit Nepali number (e.g. 98XXXXXXXX).</span>
                     </div>
                   </div>
 
@@ -768,6 +788,9 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                           {showNewPassword ? "🙈" : "👁️"}
                         </button>
                       </div>
+                      <span style={{ fontSize: "0.75rem", color: "#71717a", marginTop: "4px", display: "block" }}>
+                        Min. 6 characters, must include uppercase, lowercase, numbers, and special characters.
+                      </span>
                     </div>
                     <div className="joinFormGroup">
                       <label>Confirm Password</label>
@@ -900,15 +923,25 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                           type="tel"
                           className="joinFormInput"
                           value={walletPhone}
-                          onChange={(e) => setWalletPhone(e.target.value)}
-                          placeholder="98XXXXXXXX"
+                          onChange={(e) => {
+                            const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                            setWalletPhone(val);
+                            setWalletPhoneError(validateNepalPhone(val));
+                          }}
+                          placeholder="Phone No."
                           maxLength={10}
                           required
+                          style={walletPhoneError ? { borderColor: "#f87171" } : {}}
                         />
                         <span style={{ position: "absolute", right: "12px", top: "10px", fontSize: "0.8rem", color: "#fbbf24", fontWeight: 700 }}>
                           {onlineMethod.toUpperCase()}
                         </span>
                       </div>
+                      {walletPhoneError && (
+                        <span style={{ fontSize: "0.75rem", color: "#f87171", marginTop: "4px", display: "block" }}>
+                          {walletPhoneError}
+                        </span>
+                      )}
                     </div>
                   )}
 

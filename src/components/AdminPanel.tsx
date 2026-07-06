@@ -1096,7 +1096,7 @@ function Trainers({ trainers, onOpenAdd, onOpenEdit, onDelete }: {
 
   return (
     <div className="adminPage">
-      <PanelHeader title="Trainers" action="Add Trainer" onAction={onOpenAdd} />
+      <PanelHeader title="Our Team" action="Add Team" onAction={onOpenAdd} />
       <div className="adminTrainerGrid">
         {trainers.map((t) => (
           <article className="adminTrainerCard" key={t.name} style={{ position: "relative" }}>
@@ -1104,10 +1104,10 @@ function Trainers({ trainers, onOpenAdd, onOpenEdit, onDelete }: {
             <span className="adminOnlineDot" />
             <div>
               <h2>{t.name}</h2>
-              <p>{t.specialty}</p>
+              {t.specialty && <p>{t.specialty}</p>}
               {t.certificate && <small>Certificate: {t.certificate}</small>}
               {t.experienceYears && <small>Experience: {t.experienceYears}</small>}
-              <small>{t.clients}</small>
+              {t.clients && <small>{t.clients}</small>}
               <span className="adminBadge info" style={{ display: "inline-block", marginTop: "6px" }}>{t.category}</span>
             </div>
             <div style={{ position: "absolute", top: "12px", right: "12px", background: "rgba(24, 24, 27, 0.9)", borderRadius: "8px", display: "flex", gap: "4px", padding: "4px", alignItems: "center" }}>
@@ -1291,10 +1291,20 @@ function Settings({
   const [gymName, setGymName] = useState(settings.gymName);
   const [email, setEmail] = useState(settings.email);
   const [phone, setPhone] = useState(settings.phone);
+  const [phoneError, setPhoneError] = useState("");
   const [address, setAddress] = useState(settings.address);
   const [currency, setCurrency] = useState(settings.currency);
   const [logo, setLogo] = useState(settings.logo);
   const [message, setMessage] = useState("");
+
+  const validatePhone = (value: string) => {
+    // Nepal: 10 digits starting with 96–99, optional +977 or 977 prefix.
+    const stripped = value.trim().replace(/^(\+977|977)/, "").replace(/\s/g, "");
+    if (!stripped) return "Phone number is required.";
+    if (!/^[9][6-9][0-9]{8}$/.test(stripped))
+      return "Enter a valid 10-digit Nepali number (e.g. 9812345678 or +977 9812345678).";
+    return "";
+  };
 
   useEffect(() => {
     setGymName(settings.gymName);
@@ -1320,6 +1330,8 @@ function Settings({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    const err = validatePhone(phone);
+    if (err) { setPhoneError(err); return; }
     const nextSettings = {
       ...settings,
       gymName,
@@ -1348,7 +1360,22 @@ function Settings({
         </label>
         <label>
           <span>Phone Number</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} required />
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              setPhoneError(validatePhone(e.target.value));
+            }}
+            placeholder="Phone No."
+            required
+            style={phoneError ? { borderColor: "#f87171" } : {}}
+          />
+          {phoneError && (
+            <span style={{ fontSize: "0.78rem", color: "#f87171", marginTop: "4px", display: "block" }}>
+              {phoneError}
+            </span>
+          )}
         </label>
         <label>
           <span>Address</span>
@@ -1379,7 +1406,7 @@ function Settings({
             }}
           />
         ) : null}
-        <button className="adminSaveButton" type="submit">Save Changes</button>
+        <button className="adminSaveButton" type="submit" disabled={!!phoneError} style={phoneError ? { opacity: 0.5, cursor: "not-allowed" } : {}}>Save Changes</button>
         {message && <div style={{ background: "rgba(52, 211, 153, 0.1)", border: "1px solid rgba(52, 211, 153, 0.2)", color: "#34d399", padding: "12px", borderRadius: "6px", marginTop: "16px" }}>{message}</div>}
       </form>
     </div>
@@ -1729,7 +1756,7 @@ function ModalForm({
         <div className="adminModalHeader">
           <h2>
             {type === "edit" ? "Edit" : "Add New"}{" "}
-            {section === "classes" ? "Program" : (section === "bookings" ? "Booking" : (section === "gallery" ? "Photo" : (section.charAt(0).toUpperCase() + section.slice(1))))}
+            {section === "classes" ? "Program" : (section === "bookings" ? "Booking" : (section === "gallery" ? "Photo" : (section === "trainers" ? "Team Member" : (section.charAt(0).toUpperCase() + section.slice(1)))))}
           </h2>
           <button className="adminModalClose" onClick={onClose} aria-label="Close modal">
             <FaTimes />
@@ -1824,7 +1851,20 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Phone Number</label>
-                  <input name="phone" value={fields.phone || ""} onChange={handleChange} required />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={fields.phone || ""}
+                    onChange={handleChange}
+                    required
+                    placeholder="Phone No."
+                    pattern="(\+977|977)?[9][6-9][0-9]{8}"
+                    title="Enter a valid 10-digit Nepali number (e.g. 9812345678 or +977 9812345678)"
+                    maxLength={14}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "#71717a", marginTop: "4px", display: "block" }}>
+                    10-digit Nepali mobile number (e.g. 98XXXXXXXX or +977 9812345678).
+                  </span>
                 </div>
                 <div className="adminFormGroup">
                   <label>Select Membership Package</label>
@@ -1891,69 +1931,72 @@ function ModalForm({
             )}
 
             {/* Trainers Form fields */}
-            {section === "trainers" && (
-              <>
-                <div className="adminFormGroup">
-                  <label>Trainer Name</label>
-                  <input name="name" value={fields.name || ""} onChange={handleChange} required />
-                </div>
-                <div className="adminFormGroup">
-                  <label>Specialty / Role</label>
-                  <input name="specialty" value={fields.specialty || ""} onChange={handleChange} required placeholder="e.g. Strength Coach" />
-                </div>
-                <div className="adminFormGroup">
-                  <label>Certificate</label>
-                  <input name="certificate" value={fields.certificate || ""} onChange={handleChange} placeholder="e.g. ACE Certified Personal Trainer" />
-                </div>
-                <div className="adminFormGroup">
-                  <label>Experience Year</label>
-                  <input name="experienceYears" value={fields.experienceYears || ""} onChange={handleChange} placeholder="e.g. 5 years" />
-                </div>
-                <div className="adminFormGroup">
-                  <label>Clients Metric</label>
-                  <input name="clients" value={fields.clients || ""} onChange={handleChange} required placeholder="e.g. 15 clients or Staff" />
-                </div>
-                <div className="adminFormGroup">
-                  <label>Photo</label>
-                  {fields.image && (
-                    <img
-                      src={fields.image}
-                      alt="Trainer preview"
-                      style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
+            {section === "trainers" && (() => {
+              const isOptionalCategory = ["Front Desk", "Housekeeping", "Franchise Manager"].includes(fields.category || "Trainers");
+              return (
+                <>
+                  <div className="adminFormGroup">
+                    <label>Name</label>
+                    <input name="name" value={fields.name || ""} onChange={handleChange} required />
+                  </div>
+                  <div className="adminFormGroup">
+                    <label>Specialty / Role {!isOptionalCategory && " *"}</label>
+                    <input name="specialty" value={fields.specialty || ""} onChange={handleChange} required={!isOptionalCategory} placeholder="e.g. Strength Coach" />
+                  </div>
+                  <div className="adminFormGroup">
+                    <label>Certificate</label>
+                    <input name="certificate" value={fields.certificate || ""} onChange={handleChange} placeholder="e.g. ACE Certified Personal Trainer" />
+                  </div>
+                  <div className="adminFormGroup">
+                    <label>Experience Year</label>
+                    <input name="experienceYears" value={fields.experienceYears || ""} onChange={handleChange} placeholder="e.g. 5 years" />
+                  </div>
+                  <div className="adminFormGroup">
+                    <label>Clients Metric {!isOptionalCategory && " *"}</label>
+                    <input name="clients" value={fields.clients || ""} onChange={handleChange} required={!isOptionalCategory} placeholder="e.g. 15 clients or Staff" />
+                  </div>
+                  <div className="adminFormGroup">
+                    <label>Photo</label>
+                    {fields.image && (
+                      <img
+                        src={fields.image}
+                        alt="Trainer preview"
+                        style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
+                      />
+                    )}
+                    <label
+                      htmlFor="trainerImageUpload"
+                      style={{
+                        display: "flex", alignItems: "center", gap: "8px",
+                        padding: "10px 14px", background: "rgba(251,191,36,0.08)",
+                        border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "8px",
+                        cursor: "pointer", color: "#fbbf24", fontSize: "0.875rem", fontWeight: 600,
+                      }}
+                    >
+                      <FaCamera /> {fields.image ? "Change Photo" : "Upload Photo from Device"}
+                    </label>
+                    <input
+                      id="trainerImageUpload"
+                      type="file"
+                      name="image"
+                      accept="image/*"
+                      onChange={handleChange}
+                      style={{ display: "none" }}
                     />
-                  )}
-                  <label
-                    htmlFor="trainerImageUpload"
-                    style={{
-                      display: "flex", alignItems: "center", gap: "8px",
-                      padding: "10px 14px", background: "rgba(251,191,36,0.08)",
-                      border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "8px",
-                      cursor: "pointer", color: "#fbbf24", fontSize: "0.875rem", fontWeight: 600,
-                    }}
-                  >
-                    <FaCamera /> {fields.image ? "Change Photo" : "Upload Photo from Device"}
-                  </label>
-                  <input
-                    id="trainerImageUpload"
-                    type="file"
-                    name="image"
-                    accept="image/*"
-                    onChange={handleChange}
-                    style={{ display: "none" }}
-                  />
-                </div>
-                <div className="adminFormGroup">
-                  <label>Category Group</label>
-                  <select name="category" value={fields.category || "Trainers"} onChange={handleChange}>
-                    <option value="Trainers">Trainers (Main list)</option>
-                    <option value="Yoga Instructor">Yoga Instructor</option>
-                    <option value="Front Desk">Front Desk</option>
-                    <option value="Housekeeping">Housekeeping</option>
-                    <option value="Franchise Manager">Franchise Manager</option>
-                  </select>
-                </div>
-              </>
-            )}
+                  </div>
+                  <div className="adminFormGroup">
+                    <label>Category Group</label>
+                    <select name="category" value={fields.category || "Trainers"} onChange={handleChange}>
+                      <option value="Trainers">Trainers (Main list)</option>
+                      <option value="Yoga Instructor">Yoga Instructor</option>
+                      <option value="Front Desk">Front Desk</option>
+                      <option value="Housekeeping">Housekeeping</option>
+                      <option value="Franchise Manager">Franchise Manager</option>
+                    </select>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Blogs Form fields */}
             {section === "blogs" && (
