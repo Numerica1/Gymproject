@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GymPro – Exclusive Membership Offer</title>
+  <meta name="description" content="Claim your exclusive 15% off first gym membership. Limited time welcome offer for new members only." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ──────────────────────────────────────────
+       CSS RESET & TOKENS
+    ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange:       #FF6B1A;
+      --orange-glow:  #FF8C42;
+      --orange-dark:  #E05510;
+      --bg-dark:      #0A0A0A;
+      --bg-card:      rgba(255,255,255,0.04);
+      --border:       rgba(255,255,255,0.10);
+      --border-hover: rgba(255,107,26,0.5);
+      --text-white:   #FFFFFF;
+      --text-muted:   rgba(255,255,255,0.55);
+      --radius-lg:    16px;
+      --radius-sm:    10px;
+      --shadow-glow:  0 0 40px rgba(255,107,26,0.25);
+      --transition:   0.3s ease;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-white);
+      overflow-x: hidden;
+    }
+
+    /* ──────────────────────────────────────────
+       PAGE BACKGROUND (gym atmosphere)
+    ────────────────────────────────────────── */
+    .page-bg {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(255,107,26,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(255,107,26,0.05) 0%, transparent 60%),
+        linear-gradient(135deg, #0A0A0A 0%, #111111 50%, #0D0D0D 100%);
+      z-index: 0;
+    }
+
+    /* ──────────────────────────────────────────
+       OVERLAY BACKDROP
+    ────────────────────────────────────────── */
+    #popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  visibility 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #popup-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    /* ──────────────────────────────────────────
+       MODAL CARD
+    ────────────────────────────────────────── */
+    .modal {
+      position: relative;
+      width: 100%;
+      max-width: 880px;
+      min-height: 520px;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border: 1px solid var(--border);
+      box-shadow:
+        0 32px 80px rgba(0,0,0,0.8),
+        0 0 0 1px rgba(255,107,26,0.08),
+        var(--shadow-glow);
+      transform: translateY(40px) scale(0.96);
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    #popup-overlay.active .modal {
+      transform: translateY(0) scale(1);
+    }
+
+    /* ──────────────────────────────────────────
+       LEFT — IMAGE COLUMN
+    ────────────────────────────────────────── */
+    .modal__image-col {
+      position: relative;
+      overflow: hidden;
+      min-height: 480px;
+    }
+
+    .modal__image-col img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center top;
+      display: block;
+    }
+
+    /* gradient overlays */
+    .modal__image-col::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to right,  transparent 60%, rgba(10,10,10,0.85) 100%),
+        linear-gradient(to top, rgba(10,10,10,0.4) 0%, transparent 40%),
+        linear-gradient(135deg, rgba(255,107,26,0.12) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    /* badge on image */
+    .modal__badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: var(--orange);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 50px;
+      z-index: 2;
+      box-shadow: 0 4px 20px rgba(255,107,26,0.5);
+    }
+
+    /* ──────────────────────────────────────────
+       RIGHT — CONTENT COLUMN
+    ────────────────────────────────────────── */
+    .modal__content-col {
+      background: linear-gradient(160deg, #111111 0%, #0D0D0D 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 44px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* subtle decorative glow behind content */
+    .modal__content-col::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      right: -60px;
+      width: 220px;
+      height: 220px;
+      background: radial-gradient(circle, rgba(255,107,26,0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .modal__content-col::after {
+      content: '';
+      position: absolute;
+      bottom: -40px;
+      left: -40px;
+      width: 180px;
+      height: 180px;
+      background: radial-gradient(circle, rgba(255,107,26,0.10) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ──────────────────────────────────────────
+       CLOSE BUTTON
+    ────────────────────────────────────────── */
+    #close-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition), border-color var(--transition), transform var(--transition);
+      z-index: 10;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    #close-btn:hover {
+      background: rgba(255,107,26,0.2);
+      border-color: var(--orange);
+      color: var(--orange);
+      transform: rotate(90deg);
+    }
+
+    /* ──────────────────────────────────────────
+       HEADING
+    ────────────────────────────────────────── */
+    .modal__eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal__eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 24px;
+      height: 2px;
+      background: var(--orange);
+      border-radius: 2px;
+    }
+
+    .modal__heading {
+      font-size: clamp(28px, 4vw, 38px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.5px;
+      margin-bottom: 24px;
+    }
+
+    .modal__heading .white { color: var(--text-white); }
+    .modal__heading .orange { color: var(--orange); }
+
+    /* ──────────────────────────────────────────
+       PROMO BOX (glassmorphism)
+    ────────────────────────────────────────── */
+    .promo-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 18px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 24px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: relative;
+      overflow: hidden;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+
+    .promo-box::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,107,26,0.06) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .promo-box:hover {
+      border-color: rgba(255,107,26,0.3);
+      box-shadow: 0 0 24px rgba(255,107,26,0.12);
+    }
+
+    .promo-box__icon {
+      width: 44px;
+      height: 44px;
+      min-width: 44px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 6px 20px rgba(255,107,26,0.4);
+    }
+
+    .promo-box__text strong {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-white);
+      margin-bottom: 4px;
+    }
+
+    .promo-box__text span {
+      font-size: 12px;
+      color: var(--orange-glow);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .promo-box__text span::before {
+      content: '★';
+      font-size: 10px;
+    }
+
+    /* ──────────────────────────────────────────
+       FORM
+    ────────────────────────────────────────── */
+    .modal__form { display: flex; flex-direction: column; gap: 14px; }
+
+    .input-wrapper {
+      position: relative;
+    }
+
+    .input-wrapper svg {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+      transition: color var(--transition);
+    }
+
+    #email-input {
+      width: 100%;
+      padding: 14px 16px 14px 46px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-white);
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      font-weight: 400;
+      outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+      backdrop-filter: blur(8px);
+    }
+
+    #email-input::placeholder { color: var(--text-muted); }
+
+    #email-input:focus {
+      border-color: var(--orange);
+      background: rgba(255,107,26,0.05);
+      box-shadow: 0 0 0 3px rgba(255,107,26,0.12);
+    }
+
+    #email-input:focus + svg,
+    .input-wrapper:focus-within svg { color: var(--orange); }
+
+    /* ── CTA BUTTON ── */
+    #cta-btn {
+      width: 100%;
+      padding: 15px 24px;
+      background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dark) 100%);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--transition), box-shadow var(--transition), filter var(--transition);
+      box-shadow: 0 8px 32px rgba(255,107,26,0.45);
+    }
+
+    #cta-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 50%);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    #cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 40px rgba(255,107,26,0.60);
+      filter: brightness(1.08);
+    }
+
+    #cta-btn:hover::before { opacity: 1; }
+
+    #cta-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 6px 24px rgba(255,107,26,0.40);
+    }
+
+    #cta-btn .btn-spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+
+    #cta-btn.loading .btn-text { display: none; }
+    #cta-btn.loading .btn-spinner { display: block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── PRIVACY NOTE ── */
+    .privacy-note {
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .privacy-note svg {
+      width: 13px;
+      height: 13px;
+      color: var(--text-muted);
+    }
+
+    /* ──────────────────────────────────────────
+       SUCCESS STATE
+    ────────────────────────────────────────── */
+    .success-state {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 14px;
+      animation: fadeIn 0.5s ease forwards;
+    }
+
+    .success-icon {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      box-shadow: 0 0 40px rgba(255,107,26,0.5);
+      animation: pop 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes pop {
+      0%   { transform: scale(0); opacity: 0; }
+      80%  { transform: scale(1.15); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .success-state h3 {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-white);
+    }
+
+    .success-state p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 260px;
+    }
+
+    .success-code {
+      background: var(--bg-card);
+      border: 1px dashed rgba(255,107,26,0.5);
+      border-radius: var(--radius-sm);
+      padding: 12px 24px;
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--orange);
+      letter-spacing: 4px;
+    }
+
+    /* ──────────────────────────────────────────
+       RESPONSIVE — TABLET
+    ────────────────────────────────────────── */
+    @media (max-width: 720px) {
+      .modal {
+        grid-template-columns: 1fr;
+        max-width: 440px;
+      }
+
+      .modal__image-col {
+        min-height: 220px;
+        max-height: 240px;
+      }
+
+      .modal__content-col {
+        padding: 32px 28px 36px;
+      }
+
+      .modal__heading { font-size: 26px; }
+    }
+
+    /* ──────────────────────────────────────────
+       RESPONSIVE — MOBILE
+    ────────────────────────────────────────── */
+    @media (max-width: 420px) {
+      #popup-overlay { padding: 10px; }
+
+      .modal__image-col { min-height: 180px; }
+
+      .modal__content-col {
+        padding: 26px 20px 30px;
+      }
+
+      .modal__heading { font-size: 24px; }
+      .promo-box { padding: 14px 16px; }
+    }
+
+    /* ──────────────────────────────────────────
+       PAGE DEMO CONTENT (behind overlay)
+    ────────────────────────────────────────── */
+    .page-demo {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      gap: 20px;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .page-demo h1 {
+      font-size: clamp(32px, 5vw, 56px);
+      font-weight: 900;
+      letter-spacing: -1px;
+    }
+
+    .page-demo h1 span { color: var(--orange); }
+
+    .page-demo p {
+      color: var(--text-muted);
+      font-size: 16px;
+      max-width: 400px;
+      line-height: 1.6;
+    }
+
+    .demo-open-btn {
+      margin-top: 8px;
+      padding: 14px 32px;
+      background: linear-gradient(135deg, var(--orange), var(--orange-dark));
+      border: none;
+      border-radius: 50px;
+      color: #fff;
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform var(--transition), box-shadow var(--transition);
+      box-shadow: 0 8px 32px rgba(255,107,26,0.4);
+    }
+
+    .demo-open-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 14px 40px rgba(255,107,26,0.55);
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Page Background -->
+  <div class="page-bg" aria-hidden="true"></div>
+
+  <!-- ════════════════════════════════════════════
+       PAGE DEMO CONTENT
+  ════════════════════════════════════════════ -->
+  <main class="page-demo">
+    <h1>GymPro <span>Fitness</span></h1>
+    <p>Your ultimate premium fitness destination. Transform your body, transform your life.</p>
+    <button class="demo-open-btn" id="demo-open-btn" aria-label="Open membership offer">
+      🏋️ View Membership Offer
+    </button>
+  </main>
+
+  <!-- ════════════════════════════════════════════
+       POPUP OVERLAY
+  ════════════════════════════════════════════ -->
+  <div id="popup-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-heading">
+
+    <div class="modal">
+
+      <!-- ── LEFT: Image Column ── -->
+      <div class="modal__image-col">
+        <span class="modal__badge">🔥 Limited Time</span>
+        <img
+          src="C:\Users\User\.gemini\antigravity\brain\988cfa1c-059e-4fbd-89a1-cd4a7aabea47\gym_female_member_1781851048377.png"
+          alt="Fit female gym member holding a dumbbell in a dark gym environment"
+          loading="eager"
+        />
+      </div>
+
+      <!-- ── RIGHT: Content Column ── -->
+      <div class="modal__content-col">
+
+        <!-- Close Button -->
+        <button id="close-btn" aria-label="Close popup">&#x2715;</button>
+
+        <!-- Default Form State -->
+        <div id="form-state">
+
+          <p class="modal__eyebrow">Exclusive Offer</p>
+
+          <h2 class="modal__heading" id="modal-heading">
+            <span class="white">WELCOME</span><br />
+            <span class="orange">OFFER!</span>
+          </h2>
+
+          <!-- Promo Box -->
+          <div class="promo-box">
+            <div class="promo-box__icon" aria-hidden="true">🎁</div>
+            <div class="promo-box__text">
+              <strong>Get 15% Off Your First Membership</strong>
+              <span>Exclusive for New Members Only!</span>
+            </div>
+          </div>
+
+          <!-- Form -->
+          <form class="modal__form" id="offer-form" novalidate>
+            <div class="input-wrapper">
+              <input
+                type="email"
+                id="email-input"
+                name="email"
+                placeholder="Enter your email address"
+                autocomplete="email"
+                required
+                aria-label="Email address"
+              />
+              <!-- Email icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="4" width="20" height="16" rx="2"/>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+              </svg>
+            </div>
+
+            <button type="submit" id="cta-btn" aria-label="Claim 15% off offer">
+              <span class="btn-text">CLAIM OFFER NOW</span>
+              <div class="btn-spinner" role="status" aria-label="Loading"></div>
+            </button>
+
+            <p class="privacy-note">
+              <!-- Shield icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              We respect your privacy. No spam, ever.
+            </p>
+          </form>
+
+        </div><!-- /#form-state -->
+
+        <!-- Success State -->
+        <div class="success-state" id="success-state" aria-live="polite">
+          <div class="success-icon" aria-hidden="true">✓</div>
+          <h3>You're In! 🎉</h3>
+          <p>Check your inbox — your exclusive 15% off code is on its way.</p>
+          <div class="success-code" id="coupon-code">GYM15OFF</div>
+          <p style="font-size:12px; color: var(--text-muted);">Use this code at checkout</p>
+        </div>
+
+      </div><!-- /.modal__content-col -->
+    </div><!-- /.modal -->
+
+  </div><!-- /#popup-overlay -->
+
+
+  <script>
+    /* ──────────────────────────────────────────
+       STATE
+    ────────────────────────────────────────── */
+    const submissions = [];   // in-memory store for email submissions
+
+    /* ──────────────────────────────────────────
+       ELEMENTS
+    ────────────────────────────────────────── */
+    const overlay     = document.getElementById('popup-overlay');
+    const closeBtn    = document.getElementById('close-btn');
+    const offerForm   = document.getElementById('offer-form');
+    const emailInput  = document.getElementById('email-input');
+    const ctaBtn      = document.getElementById('cta-btn');
+    const formState   = document.getElementById('form-state');
+    const successState= document.getElementById('success-state');
+    const demoOpenBtn = document.getElementById('demo-open-btn');
+
+    /* ──────────────────────────────────────────
+       OPEN / CLOSE
+    ────────────────────────────────────────── */
+    function openPopup() {
+      overlay.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      // Focus the email input for accessibility
+      setTimeout(() => emailInput.focus(), 650);
+    }
+
+    function closePopup() {
+      overlay.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+
+    /* ──────────────────────────────────────────
+       AUTO-OPEN AFTER 5 s
+    ────────────────────────────────────────── */
+    setTimeout(openPopup, 5000);
+
+    /* ──────────────────────────────────────────
+       DEMO BUTTON
+    ────────────────────────────────────────── */
+    demoOpenBtn.addEventListener('click', openPopup);
+
+    /* ──────────────────────────────────────────
+       CLOSE TRIGGERS
+    ────────────────────────────────────────── */
+    closeBtn.addEventListener('click', closePopup);
+
+    // Click backdrop to close
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closePopup();
+    });
+
+    // Escape key to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && overlay.classList.contains('active')) closePopup();
+    });
+
+    /* ──────────────────────────────────────────
+       EMAIL VALIDATION
+    ────────────────────────────────────────── */
+    function isValidEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+    }
+
+    /* ──────────────────────────────────────────
+       FORM SUBMISSION
+    ────────────────────────────────────────── */
+    offerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = emailInput.value.trim();
+
+      if (!isValidEmail(email)) {
+        // Shake animation for invalid email
+        emailInput.style.borderColor = '#ff4d4d';
+        emailInput.style.animation   = 'shake 0.4s ease';
+        emailInput.addEventListener('animationend', () => {
+          emailInput.style.animation = '';
+        }, { once: true });
+        emailInput.focus();
+        return;
+      }
+
+      // Reset border
+      emailInput.style.borderColor = '';
+
+      // Show loading
+      ctaBtn.classList.add('loading');
+      ctaBtn.disabled = true;
+
+      // Simulate async submission (replace with real API call)
+      await new Promise(resolve => setTimeout(resolve, 1400));
+
+      // Store submission
+      submissions.push({ email, timestamp: new Date().toISOString() });
+      console.log('📋 Email submissions:', submissions);
+
+      // Show success
+      ctaBtn.classList.remove('loading');
+      formState.style.display   = 'none';
+      successState.style.display = 'flex';
+    });
+
+    /* ──────────────────────────────────────────
+       SHAKE KEYFRAME (injected)
+    ────────────────────────────────────────── */
+    const shakeStyle = document.createElement('style');
+    shakeStyle.textContent = `
+      @keyframes shake {
+        0%,100% { transform: translateX(0); }
+        20%      { transform: translateX(-8px); }
+        40%      { transform: translateX( 8px); }
+        60%      { transform: translateX(-5px); }
+        80%      { transform: translateX( 5px); }
+      }
+    `;
+    document.head.appendChild(shakeStyle);
+  </script>
+</body>
+</html>
