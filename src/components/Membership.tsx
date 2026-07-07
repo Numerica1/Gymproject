@@ -34,10 +34,9 @@ export default function Membership({ isPageHeader = false }: MembershipProps) {
       <div className="sectionHeader">
         <p className="eyebrow dark">Membership</p>
         <Heading className="membershipHeading">
-          <span>Choose Your Fitness</span>
-          <span>Membership Plans</span>
+          <span>Choose Your Fitness Membership Plans</span>
         </Heading>
-        <p>Flexible plans designed for every fitness goal and lifestyle. All memberships include full gym access and our world-class facilities.</p>
+        <p className="membershipSubtitle">Flexible plans designed for every fitness goal and lifestyle. All memberships include full gym access and our world-class facilities.</p>
       </div>
 
       {/* ── Mobile carousel ── */}

@@ -152,14 +152,14 @@ const navItems: { id: AdminSection; label: string; icon: ReactNode }[] = [
   { id: "settings", label: "Settings", icon: <FaCog /> },
 ];
 
-function Badge({ value }: { value: string }) {
+function Badge({ value, className }: { value: string; className?: string }) {
   const tone = ["Active", "Paid", "Published", "Delivered", "Approved", "Checked In"].includes(value)
     ? "good"
     : ["Inactive", "Draft", "Expired", "Late"].includes(value)
     ? "bad"
     : "warn";
 
-  return <span className={`adminBadge ${tone}`}>{value}</span>;
+  return <span className={`adminBadge ${tone} ${className || ""}`}>{value}</span>;
 }
 
 function PanelHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
@@ -1024,7 +1024,7 @@ function Dashboard({
   );
 }
 
-function Clients({ clients, onOpenAdd, onOpenEdit, onDelete }: {
+function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
   clients: DemoClient[];
   setClients: any;
   settings: SharedGymContent;
@@ -1034,6 +1034,31 @@ function Clients({ clients, onOpenAdd, onOpenEdit, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+
+  const toggleStatus = (clientId: string) => {
+    setClients((prevClients: DemoClient[]) =>
+      prevClients.map((c) => {
+        if (c.id === clientId) {
+          let nextStatus: "Active" | "Pending" | "Expired";
+          if (c.package.status === "Active") {
+            nextStatus = "Expired";
+          } else if (c.package.status === "Expired") {
+            nextStatus = "Pending";
+          } else {
+            nextStatus = "Active";
+          }
+          return {
+            ...c,
+            package: {
+              ...c.package,
+              status: nextStatus,
+            },
+          };
+        }
+        return c;
+      })
+    );
+  };
 
   return (
     <div className="adminPage">
@@ -1054,7 +1079,16 @@ function Clients({ clients, onOpenAdd, onOpenEdit, onDelete }: {
                 <td>{c.email}</td>
                 <td>{c.phone}</td>
                 <td>{c.package.name} ({formatCurrency(c.package.price)})</td>
-                <td><Badge value={c.package.status} /></td>
+                <td>
+                  <button
+                    type="button"
+                    onClick={() => toggleStatus(c.id)}
+                    style={{ background: "none", border: "none", padding: 0, font: "inherit", cursor: "pointer" }}
+                    title="Click to toggle status"
+                  >
+                    <Badge value={c.package.status} className="clickable" />
+                  </button>
+                </td>
                 <td>{c.memberSince}</td>
                 <td>
                   <div className="adminTableActionRow">
@@ -1564,7 +1598,7 @@ function ModalForm({
         packageKey: "premium",
         status: "Active",
         startedOn: new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }),
-        renewsOn: new Date(new Date().setMonth(new Date().getMonth() + 12)).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }),
+        renewsOn: new Date(new Date().setMonth(new Date().getMonth() + 1)).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }),
         paymentMethod: "Card",
         sessionsUsed: 0,
         sessionsTotal: 24,

@@ -39,21 +39,37 @@ export default function ClientPortal() {
 
   useEffect(() => {
     const storedClient = window.localStorage.getItem(clientStorageKey);
+    const hasClicked = window.localStorage.getItem("hasClickedDashboard") === "true";
     let loggedInId = "";
+    let hasCredentials = false;
     if (storedClient) {
       try {
         const parsed = JSON.parse(storedClient);
         loggedInId = parsed.id;
+        if (parsed.username && parsed.password) {
+          hasCredentials = true;
+        }
       } catch (e) {}
     }
 
+    if (!loggedInId || !hasCredentials || !hasClicked) {
+      router.push("/login");
+      return;
+    }
+
     // Find the latest copy of this client from the dynamic clients list
-    const latestClient = clients.find((c) => c.id === loggedInId) || clients.find((c) => c.email === "john@example.com") || clients[0] || null;
+    const latestClient = clients.find((c) => c.id === loggedInId);
+    if (!latestClient || !latestClient.username || !latestClient.password) {
+      router.push("/login");
+      return;
+    }
+
     setClient(latestClient);
-  }, [clients]);
+  }, [clients, router]);
 
   const logout = () => {
     window.localStorage.removeItem(clientStorageKey);
+    window.localStorage.removeItem("hasClickedDashboard");
     router.push("/login");
   };
 

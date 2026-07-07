@@ -65,6 +65,9 @@ function JoinForm() {
     } else if (!/^[0-9]{10}$/.test(phone.trim())) {
       newErrors.phone = "Enter a valid 10-digit phone number";
     }
+    if (!address.trim()) {
+      newErrors.address = "Address is required";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -78,7 +81,7 @@ function JoinForm() {
     setTimeout(() => {
       const today = new Date();
       const renewDate = new Date(today);
-      renewDate.setMonth(renewDate.getMonth() + 12);
+      renewDate.setMonth(renewDate.getMonth() + 1);
 
       const activePlan = content.membershipPlans.find((p) => p.key === planSelection) || content.membershipPlans[0];
       const fullName = `${firstName.trim()} ${lastName.trim()}`;
@@ -123,25 +126,8 @@ function JoinForm() {
         specialRequest: specialRequest.trim(),
       } as any;
 
-      // Save currently logged in user to local storage
-      window.localStorage.setItem(clientStorageKey, JSON.stringify(createdClient));
-
-      setClients([...clients, createdClient]);
-
-      // Create a pending payment log in local storage
-      const newPayment: PaymentLog = {
-        txnId: `TXN${Math.floor(1000 + Math.random() * 9000)}`,
-        member: fullName,
-        amount: formatCurrency(activePlan.price),
-        method: "GYM",
-        status: "Pending",
-        date: today.toLocaleDateString("en-US", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
-      };
-      setPayments([newPayment, ...payments]);
+      // Save to temporary storage for checkout page (does not log them in or add to global clients list)
+      window.localStorage.setItem("fitness_temp_checkout_client", JSON.stringify(createdClient));
 
       setRegisteredClient(createdClient);
       setIsSubmitting(false);
@@ -454,14 +440,19 @@ function JoinForm() {
 
         {/* Address Field */}
         <div className="formGroup">
-          <label>Address</label>
+          <label>Address <span>*</span></label>
           <input
             type="text"
             className="formInput"
             placeholder="Address"
             value={address}
-            onChange={(e) => setAddress(e.target.value)}
+            onChange={(e) => {
+              setAddress(e.target.value);
+              if (errors.address) setErrors((prev) => ({ ...prev, address: "" }));
+            }}
+            required
           />
+          {errors.address && <span className="errorMsg">{errors.address}</span>}
         </div>
 
         {/* Special Request Field */}

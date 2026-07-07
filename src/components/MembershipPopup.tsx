@@ -68,6 +68,7 @@ export default function MembershipPopup() {
     });
     if (typeof window !== "undefined") {
       window.localStorage.setItem("fitness-claimed-offer-email", email.trim());
+      window.localStorage.setItem("fitness-welcome-promo-code", "GYM15OFF");
     }
     setLoading(false);
     setSubmitted(true);

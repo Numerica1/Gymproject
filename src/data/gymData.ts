@@ -430,12 +430,7 @@ function fetchGymDataOnce<T>(key: string, seed: T): Promise<T> {
 
 // Custom hook generator for reactive gym state
 export function useGymState<T>(key: string, seed: T): [T, (val: T) => void] {
-  const [state, setState] = useState<T>(() => {
-    if (typeof window !== "undefined" && clientCache[key] !== undefined) {
-      return clientCache[key] as T;
-    }
-    return seed;
-  });
+  const [state, setState] = useState<T>(seed);
   // Track the last time we wrote locally so polling doesn't overwrite it
   const lastWriteRef = useRef<number>(0);
 

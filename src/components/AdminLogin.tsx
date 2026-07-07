@@ -130,7 +130,7 @@ export default function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => v
                   onClick={() => setShowPassword(!showPassword)}
                   aria-label="Toggle password visibility"
                 >
-                  {showPassword ? <FaEyeSlash /> : <FaEye />}
+                  {showPassword ? "🐵" : "🙈"}
                 </button>
               </div>
             </div>

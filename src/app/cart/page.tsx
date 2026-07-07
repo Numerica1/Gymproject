@@ -238,8 +238,8 @@ export default function CartPage() {
 
             {cart.length ? (
               <div className="shopCartItems">
-                {cart.map((item) => (
-                  <div className="shopCartItem" key={item.product.name}>
+                {cart.map((item, index) => (
+                  <div className="shopCartItem" key={`${item.product.name}-${index}`}>
                     <div>
                       <strong>{item.product.name}</strong>
                       <span>

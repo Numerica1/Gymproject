@@ -25,7 +25,11 @@ export default function Navbar() {
 
   useEffect(() => {
     // Check login state from localStorage
-    const check = () => setIsLoggedIn(!!window.localStorage.getItem(clientStorageKey));
+    const check = () => {
+      const hasSession = !!window.localStorage.getItem(clientStorageKey);
+      const hasClicked = window.localStorage.getItem("hasClickedDashboard") === "true";
+      setIsLoggedIn(hasSession && hasClicked);
+    };
     check();
     window.addEventListener("storage", check);
     return () => window.removeEventListener("storage", check);

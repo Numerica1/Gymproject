@@ -242,7 +242,7 @@ export default function ShopClient() {
             const outOfStock = stock <= 0;
 
             return (
-              <article className="shopProductCard" key={product.name}>
+              <article className="shopProductCard" key={`${product.name}-${index}`}>
                 <img src={getProductImage(product, index)} alt={product.name} />
                 <div>
                   <span>{product.category}</span>

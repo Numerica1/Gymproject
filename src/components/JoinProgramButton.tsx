@@ -785,7 +785,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                           style={{ position: "absolute", right: "10px", top: "10px", background: "none", border: "none", color: "#71717a", cursor: "pointer", fontSize: "1rem" }}
                           aria-label="Toggle password visibility"
                         >
-                          {showNewPassword ? "🙈" : "👁️"}
+                          {showNewPassword ? "🐵" : "🙈"}
                         </button>
                       </div>
                       <span style={{ fontSize: "0.75rem", color: "#71717a", marginTop: "4px", display: "block" }}>
