@@ -1,6 +1,7 @@
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import AboutTrainers from "../../components/AboutTrainers";
+import Image from "next/image";
 
 export const metadata = {
   title: "About Us | Fitness Bhaktapur",
@@ -31,10 +32,14 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="about-intro-image-wrapper">
-            <img 
-              src="/images/gym-corner.jpg" 
-              alt="Fitness Bhaktapur Gym Floor" 
+            <Image
+              src="/images/gym-corner.jpg"
+              alt="Fitness Bhaktapur Gym Floor"
               className="about-intro-image"
+              fill
+              style={{ objectFit: "cover" }}
+              sizes="(max-width: 768px) 100vw, 50vw"
+              priority
             />
           </div>
         </section>
@@ -43,10 +48,22 @@ export default function AboutPage() {
         <section className="about-mission-section">
           <div className="about-mission-images">
             <div className="about-mission-img-card">
-              <img src="/images/calm-yoga.jpg" alt="Yoga session representing wellness" />
+              <Image
+                src="/images/calm-yoga.jpg"
+                alt="Yoga session representing wellness"
+                fill
+                style={{ objectFit: "cover" }}
+                sizes="(max-width: 768px) 50vw, 25vw"
+              />
             </div>
             <div className="about-mission-img-card">
-              <img src="/images/pullup-training.jpg" alt="Strength conditioning representing power" />
+              <Image
+                src="/images/pullup-training.jpg"
+                alt="Strength conditioning representing power"
+                fill
+                style={{ objectFit: "cover" }}
+                sizes="(max-width: 768px) 50vw, 25vw"
+              />
             </div>
           </div>
           <div className="about-mission-text">

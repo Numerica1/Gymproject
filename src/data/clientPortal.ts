@@ -37,7 +37,7 @@ export const clientPackages: Record<string, Omit<ClientPackage, "startedOn" | "r
     access: "Standard gym access and fitness classes",
     status: "Active",
     sessionsUsed: 8,
-    sessionsTotal: 16,
+    sessionsTotal: 15,
     trainer: "Front Desk Support",
     features: [
       "Access to gym floor",
@@ -54,7 +54,7 @@ export const clientPackages: Record<string, Omit<ClientPackage, "startedOn" | "r
     access: "All features with priority class booking",
     status: "Active",
     sessionsUsed: 14,
-    sessionsTotal: 24,
+    sessionsTotal: 30,
     trainer: "Mike Johnson",
     features: [
       "Unlimited gym access",

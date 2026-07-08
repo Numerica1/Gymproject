@@ -1,19 +1,18 @@
 "use client";
 
-import { notFound } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Navbar from "../../../components/Navbar";
 import Footer from "../../../components/Footer";
-import { FaClock, FaGauge, FaUserGroup, FaCalendarDays, FaCheck, FaDumbbell } from "react-icons/fa6";
+import { FaClock, FaGauge, FaCheck, FaDumbbell } from "react-icons/fa6";
 import JoinProgramButton from "../../../components/JoinProgramButton";
-import { useGymClasses, parseScheduleTable } from "../../../data/gymData";
+import { useGymClasses, parseScheduleTable, type ClassSchedule } from "../../../data/gymData";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
-function ProgramDetailContent({ program }: { program: any }) {
+function ProgramDetailContent({ program }: { program: ClassSchedule }) {
   const displayImage = program.image || "/images/fitness-logo.jpg";
   const benefits = program.benefits ? program.benefits.split(",").map((b: string) => b.trim()).filter(Boolean) : [];
 

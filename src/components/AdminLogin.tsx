@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FaEye, FaEyeSlash, FaLock, FaEnvelope, FaKey, FaCircleCheck, FaArrowLeft } from "react-icons/fa6";
+import { FaLock, FaEnvelope, FaKey, FaCircleCheck, FaArrowLeft } from "react-icons/fa6";
 import { useGymSettings } from "../data/gymData";
 
 type Screen = "login" | "forgot" | "verify" | "reset" | "success";

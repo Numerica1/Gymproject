@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { FaArrowLeft, FaTrash, FaCartShopping, FaCheck } from "react-icons/fa6";
+import { FaArrowLeft, FaTrash, FaCartShopping } from "react-icons/fa6";
 import { type Product, useGymOffers, useGymOrders, useGymProducts, type Offer } from "../../data/gymData";
 import { formatCurrency } from "../../data/currency";
 

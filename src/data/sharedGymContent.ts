@@ -52,7 +52,15 @@ function mergeMembershipPlans(defaultPlans: SharedMembershipPlan[], storedPlans?
     });
   });
 
-  return Array.from(merged.values());
+  return Array.from(merged.values()).map(normalizeMembershipPlanSessions);
+}
+
+function normalizeMembershipPlanSessions(plan: SharedMembershipPlan): SharedMembershipPlan {
+  const normalized = `${plan.key} ${plan.name}`.toLowerCase();
+  if (normalized.includes("basic")) return { ...plan, sessionsTotal: 15 };
+  if (normalized.includes("standard")) return { ...plan, sessionsTotal: 20 };
+  if (normalized.includes("premium")) return { ...plan, sessionsTotal: 30 };
+  return plan;
 }
 
 export function readSharedGymContent() {
@@ -78,7 +86,13 @@ export function readSharedGymContent() {
 }
 
 export function saveSharedGymContent(content: SharedGymContent) {
-  window.localStorage.setItem(sharedGymContentKey, JSON.stringify(content));
+  window.localStorage.setItem(
+    sharedGymContentKey,
+    JSON.stringify({
+      ...content,
+      membershipPlans: content.membershipPlans.map(normalizeMembershipPlanSessions),
+    })
+  );
   window.dispatchEvent(new Event(sharedGymContentChangedEvent));
 }
 

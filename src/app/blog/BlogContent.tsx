@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import { useGymBlogs } from "../../data/gymData";
 
 export default function BlogContent() {
@@ -21,7 +22,14 @@ export default function BlogContent() {
             transition={{ duration: 0.4, delay: idx * 0.08 }}
           >
             <div className="blogImageWrapper">
-              <img src={post.image} alt={post.title} className="blogImage" />
+              <Image
+                src={post.image}
+                alt={post.title}
+                className="blogImage"
+                width={600}
+                height={400}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              />
             </div>
             <div className="blogContent">
               <h3>{post.title}</h3>

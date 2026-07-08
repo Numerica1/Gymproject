@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { FaCheck, FaXmark, FaCreditCard, FaLock, FaBuildingColumns, FaWallet } from "react-icons/fa6";
 import { useGymTrainers, useGymOrders, useGymPayments, useGymClients, type OrderLog, type PaymentLog } from "../data/gymData";
 import { type DemoClient } from "../data/clientPortal";
@@ -75,9 +75,11 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
   const basePrice = basePrices[program.slug] || 3000;
 
   // Filter dynamic trainers categorized as "Trainers" or "Yoga Instructor" etc.
-  const availableTrainers = allTrainers.filter(
-    (t) => t.category === "Trainers" || t.category === "Yoga Instructor"
-  );
+  const availableTrainers = useMemo(() => {
+    return allTrainers.filter(
+      (t) => t.category === "Trainers" || t.category === "Yoga Instructor"
+    );
+  }, [allTrainers]);
 
   // Set default trainer
   useEffect(() => {
@@ -86,7 +88,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
     } else if (!trainer) {
       setTrainer("Default Gym Coach");
     }
-  }, [allTrainers, trainer]);
+  }, [availableTrainers, trainer]);
 
   // Calculate pricing & discounts
   const subtotal = basePrice * duration;

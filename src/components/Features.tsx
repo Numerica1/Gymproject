@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { FaArrowRight, FaDumbbell } from "react-icons/fa6";
 import { useGymClasses } from "../data/gymData";
 
@@ -73,7 +74,7 @@ export default function Features({ isPageHeader = false }: FeaturesProps) {
                   key={`${program.className}-${idx}`}
                   id={`program-card-${slug}`}
                 >
-                  <img src={program.image || "/images/fitness-logo.jpg"} alt={program.className} className="programImage" />
+                  <Image src={program.image || "/images/fitness-logo.jpg"} alt={program.className} className="programImage" width={400} height={190} unoptimized />
                   <div className="cardIcon"><FaDumbbell /></div>
                   <h3>{program.className}</h3>
                   <span className="textLink programLearnMoreBtn">

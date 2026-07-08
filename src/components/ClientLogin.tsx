@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FaEye, FaEyeSlash, FaArrowLeft, FaCircleCheck } from "react-icons/fa6";
 import { clientStorageKey } from "../data/clientPortal";
-import { useGymClients, GYM_CLIENTS_KEY } from "../data/gymData";
+import { useGymClients } from "../data/gymData";
 
 type Screen = "login" | "forgot" | "verify" | "reset" | "success";
 
@@ -191,7 +191,7 @@ export default function ClientLogin() {
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label="Toggle password visibility"
                   >
-                    {showPassword ? "🐵" : "🙈"}
+                    {showPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
               </div>
@@ -344,7 +344,7 @@ export default function ClientLogin() {
                     onClick={() => setShowNewPassword(!showNewPassword)}
                     aria-label="Toggle new password visibility"
                   >
-                    {showNewPassword ? "🐵" : "🙈"}
+                    {showNewPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
               </div>
@@ -367,7 +367,7 @@ export default function ClientLogin() {
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     aria-label="Toggle confirm password visibility"
                   >
-                    {showConfirmPassword ? "🐵" : "🙈"}
+                    {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                   </button>
                 </div>
               </div>

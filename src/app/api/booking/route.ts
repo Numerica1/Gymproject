@@ -35,6 +35,14 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
   return payload;
 }
 
+interface BookingItem {
+  bookingId: string;
+  member: string;
+  service: string;
+  date: string;
+  status?: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const currentBookings = (Array.isArray(rows) && rows[0]?.value) || [];
 
-    const newBooking = {
+    const newBooking: BookingItem = {
       bookingId,
       member,
       service,
@@ -67,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     const savedBooking =
       Array.isArray(upsertRows) && upsertRows[0]?.value
-        ? (upsertRows[0].value as any[]).find((b) => b.bookingId === bookingId) || newBooking
+        ? (upsertRows[0].value as BookingItem[]).find((b) => b.bookingId === bookingId) || newBooking
         : newBooking;
 
     return NextResponse.json({ ok: true, booking: savedBooking });

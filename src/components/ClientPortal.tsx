@@ -26,6 +26,8 @@ export default function ClientPortal() {
   const [classes] = useGymClasses();
   const [client, setClient] = useState<DemoClient | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   const getUpgradePlans = (currentKey: string): UpgradePlan[] => {
     const upgradeOrder = ["basic", "premium", "elite"];
@@ -38,34 +40,66 @@ export default function ClientPortal() {
   };
 
   useEffect(() => {
+    setMounted(true);
+    // Safety net: if clients list never loads after 3s, stop waiting
+    const timer = setTimeout(() => setTimedOut(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // Don't run auth check until the component has mounted (localStorage is available)
+    // and until the clients list has finished loading from localStorage/API.
+    // The clients list starts as [] (seed) and populates on mount — wait for it.
+    if (!mounted) return;
+
     const storedClient = window.localStorage.getItem(clientStorageKey);
-    const hasClicked = window.localStorage.getItem("hasClickedDashboard") === "true";
+    let storedClientData: Partial<DemoClient> | null = null;
     let loggedInId = "";
     let hasCredentials = false;
     if (storedClient) {
       try {
-        const parsed = JSON.parse(storedClient);
-        loggedInId = parsed.id;
-        if (parsed.username && parsed.password) {
+        storedClientData = JSON.parse(storedClient) as Partial<DemoClient>;
+        loggedInId = storedClientData.id || "";
+        if (storedClientData.username && storedClientData.password) {
           hasCredentials = true;
         }
-      } catch (e) {}
+      } catch {}
     }
 
-    if (!loggedInId || !hasCredentials || !hasClicked) {
+    if (!loggedInId || !hasCredentials) {
       router.push("/login");
+      return;
+    }
+
+    // If clients list is still empty (loading), wait — don't redirect yet
+    // But if we've timed out, treat it as a failed lookup and send to login
+    if (clients.length === 0) {
+      if (timedOut) router.push("/login");
       return;
     }
 
     // Find the latest copy of this client from the dynamic clients list
     const latestClient = clients.find((c) => c.id === loggedInId);
-    if (!latestClient || !latestClient.username || !latestClient.password) {
+    if (!latestClient) {
       router.push("/login");
       return;
     }
 
-    setClient(latestClient);
-  }, [clients, router]);
+    const syncedClient: DemoClient = {
+      ...latestClient,
+      username: latestClient.username || storedClientData?.username,
+      password: latestClient.password || storedClientData?.password,
+    };
+
+    if (!syncedClient.username || !syncedClient.password) {
+      router.push("/login");
+      return;
+    }
+
+    window.localStorage.setItem(clientStorageKey, JSON.stringify(syncedClient));
+    setClient(syncedClient);
+  }, [mounted, timedOut, clients, router]);
+
 
   const logout = () => {
     window.localStorage.removeItem(clientStorageKey);
@@ -79,9 +113,13 @@ export default function ClientPortal() {
 
   const activePackage = client.package;
   const upgradePlans = getUpgradePlans(activePackage.key);
-  const usagePercent = Math.round(
-    (activePackage.sessionsUsed / activePackage.sessionsTotal) * 100
-  );
+  const sessionsUsed = Number(activePackage.sessionsUsed) || 0;
+  const sessionsTotal = Number(activePackage.sessionsTotal) || 0;
+  const usagePercent =
+    sessionsTotal > 0
+      ? Math.min(100, Math.max(0, Math.round((sessionsUsed / sessionsTotal) * 100)))
+      : 0;
+  const isSessionLimitReached = sessionsTotal > 0 && usagePercent >= 100;
 
   return (
     <section className="clientPortalPage">
@@ -127,6 +165,17 @@ export default function ClientPortal() {
           </div>
         )}
 
+        {isSessionLimitReached && (
+          <div className="clientUpgradeBanner">
+            <p>
+              You have used 100% of your package sessions. Please renew or upgrade your package to keep training without interruption.
+            </p>
+            <button type="button" onClick={() => setShowUpgradeModal(true)}>
+              Renew / Upgrade Package
+            </button>
+          </div>
+        )}
+
         <div className="clientPackageStats">
           <article>
             <FaWallet />
@@ -154,8 +203,7 @@ export default function ClientPortal() {
           <div>
             <h3>Session Usage</h3>
             <p>
-              {activePackage.sessionsUsed} of {activePackage.sessionsTotal} package
-              sessions used this cycle.
+              {sessionsUsed} of {sessionsTotal} package sessions used this cycle.
             </p>
           </div>
           <strong>{usagePercent}%</strong>

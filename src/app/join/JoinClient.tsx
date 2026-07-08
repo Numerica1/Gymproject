@@ -3,16 +3,15 @@
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FaArrowRight, FaSpinner, FaCircleCheck } from "react-icons/fa6";
-import { useGymSettings, useGymClients, useGymPayments, getNextClientId, type PaymentLog } from "../../data/gymData";
-import { clientStorageKey, type DemoClient } from "../../data/clientPortal";
+import { useGymSettings, useGymClients, getNextClientId } from "../../data/gymData";
+import { type DemoClient } from "../../data/clientPortal";
 import { formatCurrency } from "../../data/currency";
 
 function JoinForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [content] = useGymSettings();
-  const [clients, setClients] = useGymClients();
-  const [payments, setPayments] = useGymPayments();
+  const [clients] = useGymClients();
 
   // Selected plan from URL query params (default to premium)
   const planKey = searchParams?.get("plan") || "premium";
@@ -124,7 +123,7 @@ function JoinForm() {
         weight: weight.trim(),
         height: height.trim(),
         specialRequest: specialRequest.trim(),
-      } as any;
+      };
 
       // Save to temporary storage for checkout page (does not log them in or add to global clients list)
       window.localStorage.setItem("fitness_temp_checkout_client", JSON.stringify(createdClient));

@@ -19,7 +19,7 @@ interface SupabaseClient {
   package_name?: string;
   package_status?: string;
   username?: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
 }
 
@@ -33,7 +33,7 @@ interface SupabaseTrainer {
   trainer_key?: string;
   category?: string;
   clients_label?: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -53,9 +53,9 @@ interface SupabaseClass {
   duration?: string;
   intensity?: string;
   target_audience?: string;
-  benefits?: any[];
+  benefits?: unknown[];
   full_schedule?: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -70,7 +70,7 @@ interface SupabaseProduct {
   category?: string;
   product_key?: string;
   status: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -86,7 +86,7 @@ interface SupabaseOffer {
   code?: string;
   offer_type?: string;
   status: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -103,7 +103,7 @@ interface SupabaseOrder {
   email?: string;
   pickup_point?: string;
   address?: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -117,7 +117,7 @@ interface SupabaseReview {
   customer_name?: string;
   product_name?: string;
   status: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -131,7 +131,7 @@ interface SupabasePayment {
   txn_id?: string;
   member?: string;
   date?: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -144,7 +144,7 @@ interface SupabaseAttendance {
   status?: string;
   time?: string;
   date: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
 }
 
@@ -158,25 +158,10 @@ interface SupabaseBooking {
   program?: string;
   email?: string;
   date?: string;
-  source_payload?: any;
+  source_payload?: unknown;
   created_at: string;
 }
 
-interface SupabaseBlog {
-  id: string;
-  title: string;
-  content: string;
-  image_url?: string;
-  author_id?: string;
-  slug?: string;
-  author_name?: string;
-  category?: string;
-  read_time?: string;
-  summary?: string;
-  source_payload?: any;
-  created_at: string;
-  updated_at: string;
-}
 
 interface SupabaseContactMessage {
   id: string;
@@ -187,6 +172,129 @@ interface SupabaseContactMessage {
   message: string;
   created_at: string;
 }
+
+type SourcePayload = Record<string, unknown>;
+type SupabaseInsert<T> = Partial<T>;
+
+function isSourcePayload(value: unknown): value is SourcePayload {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+type ClientPackagePayload = Partial<{
+  key: string;
+  name: string;
+  status: string;
+}>;
+
+type GymClientPayload = SourcePayload & Partial<{
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  weight: string;
+  height: string;
+  specialRequest: string;
+  memberSince: string;
+  package: ClientPackagePayload;
+  username: string;
+}>;
+
+type GymTrainerPayload = SourcePayload & Partial<{
+  name: string;
+  specialty: string;
+  experienceYears: string;
+  image: string;
+  certificate: string;
+  category: string;
+  clients: string;
+}>;
+
+type GymClassPayload = SourcePayload & Partial<{
+  className: string;
+  description: string;
+  trainer: string;
+  time: string;
+  capacity: string;
+  image: string;
+  duration: string;
+  intensity: string;
+  targetAudience: string;
+  benefits: string;
+  schedule: string;
+}>;
+
+type GymProductPayload = SourcePayload & Partial<{
+  name: string;
+  category: string;
+  price: string;
+  stock: string;
+  image: string;
+  status: string;
+}>;
+
+type GymOfferPayload = SourcePayload & Partial<{
+  name: string;
+  type: string;
+  discount: string;
+  code: string;
+  validTill: string;
+  status: string;
+}>;
+
+type GymOrderPayload = SourcePayload & Partial<{
+  orderId: string;
+  customer: string;
+  items: string;
+  total: string;
+  payment: string;
+  status: string;
+  email: string;
+  pickupPoint: string;
+  address: string;
+}>;
+
+type GymReviewPayload = SourcePayload & Partial<{
+  customer: string;
+  product: string;
+  rating: string;
+  reviewText: string;
+  status: string;
+}>;
+
+type GymPaymentPayload = SourcePayload & Partial<{
+  txnId: string;
+  member: string;
+  amount: string;
+  method: string;
+  status: string;
+  date: string;
+}>;
+
+type GymAttendancePayload = SourcePayload & Partial<{
+  member: string;
+  plan: string;
+  status: string;
+  time: string;
+}>;
+
+type GymBookingPayload = SourcePayload & Partial<{
+  bookingId: string;
+  member: string;
+  service: string;
+  trainer: string;
+  program: string;
+  email: string;
+  date: string;
+}>;
+
+type GymContactMessagePayload = SourcePayload & Partial<{
+  name: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+}>;
 
 // Generic Supabase API functions
 async function supabaseGet<T>(table: string, params?: Record<string, string>): Promise<T[]> {
@@ -239,7 +347,7 @@ async function supabaseDelete(table: string, id: string): Promise<void> {
 }
 
 // Conversion functions: Gym types -> Supabase types
-function toSupabaseClient(client: any): Partial<SupabaseClient> {
+function toSupabaseClient(client: GymClientPayload): SupabaseInsert<SupabaseClient> {
   return {
     full_name: client.name,
     email: client.email,
@@ -258,8 +366,22 @@ function toSupabaseClient(client: any): Partial<SupabaseClient> {
   };
 }
 
-function fromSupabaseClient(supabaseClient: SupabaseClient): any {
+function fromSupabaseClient(supabaseClient: SupabaseClient): SourcePayload {
+  const source = isSourcePayload(supabaseClient.source_payload)
+    ? supabaseClient.source_payload
+    : {};
+  const sourcePackage = isSourcePayload(source.package) ? source.package : undefined;
+  const packageFromColumns = supabaseClient.package_key
+    ? {
+        ...sourcePackage,
+        key: supabaseClient.package_key,
+        name: supabaseClient.package_name ?? sourcePackage?.name,
+        status: supabaseClient.package_status ?? sourcePackage?.status,
+      }
+    : sourcePackage;
+
   return {
+    ...source,
     id: supabaseClient.client_code || supabaseClient.id,
     name: supabaseClient.full_name,
     email: supabaseClient.email,
@@ -269,30 +391,26 @@ function fromSupabaseClient(supabaseClient: SupabaseClient): any {
     height: supabaseClient.height,
     specialRequest: supabaseClient.special_request,
     memberSince: supabaseClient.member_since,
-    package: supabaseClient.package_key ? {
-      key: supabaseClient.package_key,
-      name: supabaseClient.package_name,
-      status: supabaseClient.package_status,
-    } : undefined,
-    username: supabaseClient.username,
+    package: packageFromColumns,
+    username: supabaseClient.username ?? source.username,
   };
 }
 
-function toSupabaseTrainer(trainer: any): Partial<SupabaseTrainer> {
+function toSupabaseTrainer(trainer: GymTrainerPayload): SupabaseInsert<SupabaseTrainer> {
   return {
     name: trainer.name,
     specialization: trainer.specialty,
     experience: trainer.experienceYears ? parseInt(trainer.experienceYears) : undefined,
     image_url: trainer.image,
     bio: trainer.certificate,
-    trainer_key: trainer.name.toLowerCase().replace(/\s+/g, "-"),
+    trainer_key: trainer.name?.toLowerCase().replace(/\s+/g, "-"),
     category: trainer.category,
     clients_label: trainer.clients,
     source_payload: trainer,
   };
 }
 
-function fromSupabaseTrainer(supabaseTrainer: SupabaseTrainer): any {
+function fromSupabaseTrainer(supabaseTrainer: SupabaseTrainer): SourcePayload {
   return {
     name: supabaseTrainer.name,
     specialty: supabaseTrainer.specialization,
@@ -304,7 +422,7 @@ function fromSupabaseTrainer(supabaseTrainer: SupabaseTrainer): any {
   };
 }
 
-function toSupabaseClass(classSchedule: any): Partial<SupabaseClass> {
+function toSupabaseClass(classSchedule: GymClassPayload): SupabaseInsert<SupabaseClass> {
   return {
     title: classSchedule.className,
     description: classSchedule.description,
@@ -315,15 +433,15 @@ function toSupabaseClass(classSchedule: any): Partial<SupabaseClass> {
     duration: classSchedule.duration,
     intensity: classSchedule.intensity,
     target_audience: classSchedule.targetAudience,
-    benefits: classSchedule.benefits ? classSchedule.benefits.split(",").map((b: string) => b.trim()).filter(Boolean) : [],
+    benefits: classSchedule.benefits ? classSchedule.benefits.split(",").map((b) => b.trim()).filter(Boolean) : [],
     full_schedule: classSchedule.schedule,
-    class_key: classSchedule.className.toLowerCase().replace(/\s+/g, "-"),
-    capacity: parseInt(classSchedule.capacity) || 20,
+    class_key: classSchedule.className?.toLowerCase().replace(/\s+/g, "-"),
+    capacity: parseInt(classSchedule.capacity || "") || 20,
     source_payload: classSchedule,
   };
 }
 
-function fromSupabaseClass(supabaseClass: SupabaseClass): any {
+function fromSupabaseClass(supabaseClass: SupabaseClass): SourcePayload {
   return {
     className: supabaseClass.title,
     description: supabaseClass.description,
@@ -339,21 +457,21 @@ function fromSupabaseClass(supabaseClass: SupabaseClass): any {
   };
 }
 
-function toSupabaseProduct(product: any): Partial<SupabaseProduct> {
+function toSupabaseProduct(product: GymProductPayload): SupabaseInsert<SupabaseProduct> {
   return {
     name: product.name,
     description: product.category,
-    price: parseFloat(product.price.replace(/[^\d.]/g, "")) || 0,
-    stock: parseInt(product.stock) || 0,
+    price: parseFloat((product.price || "").replace(/[^\d.]/g, "")) || 0,
+    stock: parseInt(product.stock || "") || 0,
     image_url: product.image,
     category: product.category,
-    product_key: product.name.toLowerCase().replace(/\s+/g, "-"),
+    product_key: product.name?.toLowerCase().replace(/\s+/g, "-"),
     status: product.status,
     source_payload: product,
   };
 }
 
-function fromSupabaseProduct(supabaseProduct: SupabaseProduct): any {
+function fromSupabaseProduct(supabaseProduct: SupabaseProduct): SourcePayload {
   return {
     name: supabaseProduct.name,
     category: supabaseProduct.category || supabaseProduct.description,
@@ -364,20 +482,20 @@ function fromSupabaseProduct(supabaseProduct: SupabaseProduct): any {
   };
 }
 
-function toSupabaseOffer(offer: any): Partial<SupabaseOffer> {
+function toSupabaseOffer(offer: GymOfferPayload): SupabaseInsert<SupabaseOffer> {
   return {
     title: offer.name,
     offer_type: offer.type,
-    discount_percentage: parseFloat(offer.discount.replace(/[^\d.]/g, "")) || 0,
+    discount_percentage: parseFloat((offer.discount || "").replace(/[^\d.]/g, "")) || 0,
     code: offer.code,
     end_date: offer.validTill,
     status: offer.status,
-    offer_key: offer.name.toLowerCase().replace(/\s+/g, "-"),
+    offer_key: offer.name?.toLowerCase().replace(/\s+/g, "-"),
     source_payload: offer,
   };
 }
 
-function fromSupabaseOffer(supabaseOffer: SupabaseOffer): any {
+function fromSupabaseOffer(supabaseOffer: SupabaseOffer): SourcePayload {
   return {
     name: supabaseOffer.title,
     type: supabaseOffer.offer_type,
@@ -388,12 +506,12 @@ function fromSupabaseOffer(supabaseOffer: SupabaseOffer): any {
   };
 }
 
-function toSupabaseOrder(order: any): Partial<SupabaseOrder> {
+function toSupabaseOrder(order: GymOrderPayload): SupabaseInsert<SupabaseOrder> {
   return {
     order_number: order.orderId,
     customer_name: order.customer,
     items: order.items,
-    total_amount: parseFloat(order.total.replace(/[^\d.]/g, "")) || 0,
+    total_amount: parseFloat((order.total || "").replace(/[^\d.]/g, "")) || 0,
     payment_label: order.payment,
     status: order.status,
     email: order.email,
@@ -403,7 +521,7 @@ function toSupabaseOrder(order: any): Partial<SupabaseOrder> {
   };
 }
 
-function fromSupabaseOrder(supabaseOrder: SupabaseOrder): any {
+function fromSupabaseOrder(supabaseOrder: SupabaseOrder): SourcePayload {
   return {
     orderId: supabaseOrder.order_number,
     customer: supabaseOrder.customer_name,
@@ -418,11 +536,11 @@ function fromSupabaseOrder(supabaseOrder: SupabaseOrder): any {
   };
 }
 
-function toSupabaseReview(review: any): Partial<SupabaseReview> {
+function toSupabaseReview(review: GymReviewPayload): SupabaseInsert<SupabaseReview> {
   return {
     customer_name: review.customer,
     product_name: review.product,
-    rating: review.rating.length, // Count stars
+    rating: review.rating?.length, // Count stars
     comment: review.reviewText,
     status: review.status,
     review_key: `${review.customer}-${review.product}`.toLowerCase().replace(/\s+/g, "-"),
@@ -430,7 +548,7 @@ function toSupabaseReview(review: any): Partial<SupabaseReview> {
   };
 }
 
-function fromSupabaseReview(supabaseReview: SupabaseReview): any {
+function fromSupabaseReview(supabaseReview: SupabaseReview): SourcePayload {
   return {
     customer: supabaseReview.customer_name,
     product: supabaseReview.product_name,
@@ -441,11 +559,11 @@ function fromSupabaseReview(supabaseReview: SupabaseReview): any {
   };
 }
 
-function toSupabasePayment(payment: any): Partial<SupabasePayment> {
+function toSupabasePayment(payment: GymPaymentPayload): SupabaseInsert<SupabasePayment> {
   return {
     txn_id: payment.txnId,
     member: payment.member,
-    amount: parseFloat(payment.amount.replace(/[^\d.]/g, "")) || 0,
+    amount: parseFloat((payment.amount || "").replace(/[^\d.]/g, "")) || 0,
     method: payment.method,
     status: payment.status,
     date: payment.date,
@@ -453,7 +571,7 @@ function toSupabasePayment(payment: any): Partial<SupabasePayment> {
   };
 }
 
-function fromSupabasePayment(supabasePayment: SupabasePayment): any {
+function fromSupabasePayment(supabasePayment: SupabasePayment): SourcePayload {
   return {
     txnId: supabasePayment.txn_id,
     member: supabasePayment.member,
@@ -464,7 +582,7 @@ function fromSupabasePayment(supabasePayment: SupabasePayment): any {
   };
 }
 
-function toSupabaseAttendance(attendance: any): Partial<SupabaseAttendance> {
+function toSupabaseAttendance(attendance: GymAttendancePayload): SupabaseInsert<SupabaseAttendance> {
   return {
     member: attendance.member,
     plan: attendance.plan,
@@ -475,7 +593,7 @@ function toSupabaseAttendance(attendance: any): Partial<SupabaseAttendance> {
   };
 }
 
-function fromSupabaseAttendance(supabaseAttendance: SupabaseAttendance): any {
+function fromSupabaseAttendance(supabaseAttendance: SupabaseAttendance): SourcePayload {
   return {
     member: supabaseAttendance.member,
     plan: supabaseAttendance.plan,
@@ -484,7 +602,7 @@ function fromSupabaseAttendance(supabaseAttendance: SupabaseAttendance): any {
   };
 }
 
-function toSupabaseBooking(booking: any): Partial<SupabaseBooking> {
+function toSupabaseBooking(booking: GymBookingPayload): SupabaseInsert<SupabaseBooking> {
   return {
     booking_id: booking.bookingId,
     member: booking.member,
@@ -497,7 +615,7 @@ function toSupabaseBooking(booking: any): Partial<SupabaseBooking> {
   };
 }
 
-function fromSupabaseBooking(supabaseBooking: SupabaseBooking): any {
+function fromSupabaseBooking(supabaseBooking: SupabaseBooking): SourcePayload {
   return {
     bookingId: supabaseBooking.booking_id,
     member: supabaseBooking.member,
@@ -509,7 +627,7 @@ function fromSupabaseBooking(supabaseBooking: SupabaseBooking): any {
   };
 }
 
-function toSupabaseContactMessage(message: any): Partial<SupabaseContactMessage> {
+function toSupabaseContactMessage(message: GymContactMessagePayload): SupabaseInsert<SupabaseContactMessage> {
   return {
     name: message.name,
     email: message.email,
@@ -519,7 +637,7 @@ function toSupabaseContactMessage(message: any): Partial<SupabaseContactMessage>
   };
 }
 
-function fromSupabaseContactMessage(supabaseMessage: SupabaseContactMessage): any {
+function fromSupabaseContactMessage(supabaseMessage: SupabaseContactMessage): SourcePayload {
   return {
     id: supabaseMessage.id,
     name: supabaseMessage.name,
@@ -535,76 +653,76 @@ function fromSupabaseContactMessage(supabaseMessage: SupabaseContactMessage): an
 // Export functions for each table
 export const supabaseClients = {
   get: () => supabaseGet<SupabaseClient>("clients").then(data => data.map(fromSupabaseClient)),
-  create: (client: any) => supabasePost("clients", toSupabaseClient(client)),
-  update: (id: string, client: any) => supabaseUpdate("clients", id, toSupabaseClient(client)),
+  create: (client: Record<string, unknown>) => supabasePost("clients", toSupabaseClient(client)),
+  update: (id: string, client: Record<string, unknown>) => supabaseUpdate("clients", id, toSupabaseClient(client)),
   delete: (id: string) => supabaseDelete("clients", id),
 };
 
 export const supabaseTrainers = {
   get: () => supabaseGet<SupabaseTrainer>("trainers").then(data => data.map(fromSupabaseTrainer)),
-  create: (trainer: any) => supabasePost("trainers", toSupabaseTrainer(trainer)),
-  update: (id: string, trainer: any) => supabaseUpdate("trainers", id, toSupabaseTrainer(trainer)),
+  create: (trainer: Record<string, unknown>) => supabasePost("trainers", toSupabaseTrainer(trainer)),
+  update: (id: string, trainer: Record<string, unknown>) => supabaseUpdate("trainers", id, toSupabaseTrainer(trainer)),
   delete: (id: string) => supabaseDelete("trainers", id),
 };
 
 export const supabaseClasses = {
   get: () => supabaseGet<SupabaseClass>("classes").then(data => data.map(fromSupabaseClass)),
-  create: (classSchedule: any) => supabasePost("classes", toSupabaseClass(classSchedule)),
-  update: (id: string, classSchedule: any) => supabaseUpdate("classes", id, toSupabaseClass(classSchedule)),
+  create: (classSchedule: Record<string, unknown>) => supabasePost("classes", toSupabaseClass(classSchedule)),
+  update: (id: string, classSchedule: Record<string, unknown>) => supabaseUpdate("classes", id, toSupabaseClass(classSchedule)),
   delete: (id: string) => supabaseDelete("classes", id),
 };
 
 export const supabaseProducts = {
   get: () => supabaseGet<SupabaseProduct>("products").then(data => data.map(fromSupabaseProduct)),
-  create: (product: any) => supabasePost("products", toSupabaseProduct(product)),
-  update: (id: string, product: any) => supabaseUpdate("products", id, toSupabaseProduct(product)),
+  create: (product: Record<string, unknown>) => supabasePost("products", toSupabaseProduct(product)),
+  update: (id: string, product: Record<string, unknown>) => supabaseUpdate("products", id, toSupabaseProduct(product)),
   delete: (id: string) => supabaseDelete("products", id),
 };
 
 export const supabaseOffers = {
   get: () => supabaseGet<SupabaseOffer>("offers").then(data => data.map(fromSupabaseOffer)),
-  create: (offer: any) => supabasePost("offers", toSupabaseOffer(offer)),
-  update: (id: string, offer: any) => supabaseUpdate("offers", id, toSupabaseOffer(offer)),
+  create: (offer: Record<string, unknown>) => supabasePost("offers", toSupabaseOffer(offer)),
+  update: (id: string, offer: Record<string, unknown>) => supabaseUpdate("offers", id, toSupabaseOffer(offer)),
   delete: (id: string) => supabaseDelete("offers", id),
 };
 
 export const supabaseOrders = {
   get: () => supabaseGet<SupabaseOrder>("orders").then(data => data.map(fromSupabaseOrder)),
-  create: (order: any) => supabasePost("orders", toSupabaseOrder(order)),
-  update: (id: string, order: any) => supabaseUpdate("orders", id, toSupabaseOrder(order)),
+  create: (order: Record<string, unknown>) => supabasePost("orders", toSupabaseOrder(order)),
+  update: (id: string, order: Record<string, unknown>) => supabaseUpdate("orders", id, toSupabaseOrder(order)),
   delete: (id: string) => supabaseDelete("orders", id),
 };
 
 export const supabaseReviews = {
   get: () => supabaseGet<SupabaseReview>("reviews").then(data => data.map(fromSupabaseReview)),
-  create: (review: any) => supabasePost("reviews", toSupabaseReview(review)),
-  update: (id: string, review: any) => supabaseUpdate("reviews", id, toSupabaseReview(review)),
+  create: (review: Record<string, unknown>) => supabasePost("reviews", toSupabaseReview(review)),
+  update: (id: string, review: Record<string, unknown>) => supabaseUpdate("reviews", id, toSupabaseReview(review)),
   delete: (id: string) => supabaseDelete("reviews", id),
 };
 
 export const supabasePayments = {
   get: () => supabaseGet<SupabasePayment>("payments").then(data => data.map(fromSupabasePayment)),
-  create: (payment: any) => supabasePost("payments", toSupabasePayment(payment)),
-  update: (id: string, payment: any) => supabaseUpdate("payments", id, toSupabasePayment(payment)),
+  create: (payment: Record<string, unknown>) => supabasePost("payments", toSupabasePayment(payment)),
+  update: (id: string, payment: Record<string, unknown>) => supabaseUpdate("payments", id, toSupabasePayment(payment)),
   delete: (id: string) => supabaseDelete("payments", id),
 };
 
 export const supabaseAttendance = {
   get: () => supabaseGet<SupabaseAttendance>("attendance").then(data => data.map(fromSupabaseAttendance)),
-  create: (attendance: any) => supabasePost("attendance", toSupabaseAttendance(attendance)),
-  update: (id: string, attendance: any) => supabaseUpdate("attendance", id, toSupabaseAttendance(attendance)),
+  create: (attendance: Record<string, unknown>) => supabasePost("attendance", toSupabaseAttendance(attendance)),
+  update: (id: string, attendance: Record<string, unknown>) => supabaseUpdate("attendance", id, toSupabaseAttendance(attendance)),
   delete: (id: string) => supabaseDelete("attendance", id),
 };
 
 export const supabaseBookings = {
   get: () => supabaseGet<SupabaseBooking>("bookings").then(data => data.map(fromSupabaseBooking)),
-  create: (booking: any) => supabasePost("bookings", toSupabaseBooking(booking)),
-  update: (id: string, booking: any) => supabaseUpdate("bookings", id, toSupabaseBooking(booking)),
+  create: (booking: Record<string, unknown>) => supabasePost("bookings", toSupabaseBooking(booking)),
+  update: (id: string, booking: Record<string, unknown>) => supabaseUpdate("bookings", id, toSupabaseBooking(booking)),
   delete: (id: string) => supabaseDelete("bookings", id),
 };
 
 export const supabaseContactMessages = {
   get: () => supabaseGet<SupabaseContactMessage>("contact_messages").then(data => data.map(fromSupabaseContactMessage)),
-  create: (message: any) => supabasePost("contact_messages", toSupabaseContactMessage(message)),
+  create: (message: Record<string, unknown>) => supabasePost("contact_messages", toSupabaseContactMessage(message)),
   delete: (id: string) => supabaseDelete("contact_messages", id),
 };

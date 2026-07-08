@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import Image from "next/image";
 import type { ReactNode } from "react";
 import {
   FaBars,
@@ -15,16 +15,13 @@ import {
   FaCog,
   FaCreditCard,
   FaDumbbell,
-  FaEllipsisV,
   FaGift,
   FaLayerGroup,
   FaPlus,
   FaSearch,
   FaShoppingCart,
   FaStar,
-  FaTags,
   FaTimes,
-  FaTimesCircle,
   FaTrashAlt,
   FaEdit,
   FaUserShield,
@@ -66,7 +63,6 @@ import {
   type ContactMessage,
   parseScheduleTable,
   serializeScheduleTable,
-  type ScheduleRow,
 } from "../data/gymData";
 import type { DemoClient } from "../data/clientPortal";
 import type { SharedMembershipPlan, SharedGymContent } from "../data/sharedGymContent";
@@ -163,8 +159,6 @@ function Badge({ value, className }: { value: string; className?: string }) {
 }
 
 function PanelHeader({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
-  const router = useRouter();
-
   return (
     <div className="adminPanelHeader">
       <div>
@@ -178,6 +172,32 @@ function PanelHeader({ title, action, onAction }: { title: string; action?: stri
       ) : null}
     </div>
   );
+}
+export type AdminItem =
+  | DemoClient
+  | Trainer
+  | BlogPost
+  | PaymentLog
+  | Product
+  | Offer
+  | OrderLog
+  | Review
+  | AttendanceLog
+  | Booking
+  | ClassSchedule
+  | ContactMessage
+  | SharedMembershipPlan;
+
+function isDemoClientItem(item: AdminItem | null): item is DemoClient {
+  return !!item && "package" in item && "memberSince" in item;
+}
+
+function fixedMembershipSessions(planKey?: string, planName?: string, fallback = 24) {
+  const normalized = `${planKey || ""} ${planName || ""}`.toLowerCase();
+  if (normalized.includes("basic")) return 15;
+  if (normalized.includes("standard")) return 20;
+  if (normalized.includes("premium")) return 30;
+  return fallback;
 }
 
 export default function AdminPanel() {
@@ -203,42 +223,42 @@ export default function AdminPanel() {
 
   // Active form overlays
   const [modalType, setModalType] = useState<"add" | "edit" | null>(null);
-  const [activeItem, setActiveItem] = useState<any>(null);
+  const [activeItem, setActiveItem] = useState<AdminItem | null>(null);
 
   const activeItemLabel = useMemo(
     () => navItems.find((item) => item.id === active) ?? navItems[0],
     [active]
   );
 
-  const filterItems = <T,>(items: T[]) => {
+  const filterItems = useCallback(<T,>(items: T[]): T[] => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return items;
 
     return items.filter((item) =>
       JSON.stringify(item).toLowerCase().includes(query)
     );
-  };
+  }, [searchQuery]);
 
-  const filteredClients = useMemo(() => filterItems(clients), [clients, searchQuery]);
-  const filteredTrainers = useMemo(() => filterItems(trainers), [trainers, searchQuery]);
-  const filteredBlogs = useMemo(() => filterItems(blogs), [blogs, searchQuery]);
-  const filteredPayments = useMemo(() => filterItems(payments), [payments, searchQuery]);
-  const filteredProducts = useMemo(() => filterItems(products), [products, searchQuery]);
-  const filteredOffers = useMemo(() => filterItems(offers), [offers, searchQuery]);
-  const filteredOrders = useMemo(() => filterItems(orders), [orders, searchQuery]);
-  const filteredReviews = useMemo(() => filterItems(reviews), [reviews, searchQuery]);
-  const filteredAttendance = useMemo(() => filterItems(attendance), [attendance, searchQuery]);
-  const filteredClasses = useMemo(() => filterItems(classes), [classes, searchQuery]);
-  const filteredBookings = useMemo(() => filterItems(bookings), [bookings, searchQuery]);
-  const filteredGallery = useMemo(() => filterItems(gallery), [gallery, searchQuery]);
-  const filteredContactMessages = useMemo(() => filterItems(contactMessages), [contactMessages, searchQuery]);
+  const filteredClients = useMemo(() => filterItems(clients), [clients, filterItems]);
+  const filteredTrainers = useMemo(() => filterItems(trainers), [trainers, filterItems]);
+  const filteredBlogs = useMemo(() => filterItems(blogs), [blogs, filterItems]);
+  const filteredPayments = useMemo(() => filterItems(payments), [payments, filterItems]);
+  const filteredProducts = useMemo(() => filterItems(products), [products, filterItems]);
+  const filteredOffers = useMemo(() => filterItems(offers), [offers, filterItems]);
+  const filteredOrders = useMemo(() => filterItems(orders), [orders, filterItems]);
+  const filteredReviews = useMemo(() => filterItems(reviews), [reviews, filterItems]);
+  const filteredAttendance = useMemo(() => filterItems(attendance), [attendance, filterItems]);
+  const filteredClasses = useMemo(() => filterItems(classes), [classes, filterItems]);
+  const filteredBookings = useMemo(() => filterItems(bookings), [bookings, filterItems]);
+  const filteredGallery = useMemo(() => filterItems(gallery), [gallery, filterItems]);
+  const filteredContactMessages = useMemo(() => filterItems(contactMessages), [contactMessages, filterItems]);
   const unreadContactCount = contactMessages.filter((m) => m.status === "New").length;
   const filteredPlans = useMemo(
     () => ({
       ...settings,
       membershipPlans: filterItems(settings.membershipPlans),
     }),
-    [settings, searchQuery]
+    [settings, filterItems]
   );
 
   const setSection = (section: AdminSection) => {
@@ -254,7 +274,7 @@ export default function AdminPanel() {
     setActiveItem(null);
   };
 
-  const handleOpenEdit = (item: any) => {
+  const handleOpenEdit = (item: AdminItem) => {
     setModalType("edit");
     setActiveItem(item);
   };
@@ -430,7 +450,13 @@ export default function AdminPanel() {
           ))}
         </nav>
         <div className="adminSidebarPromo">
-          <img src="/images/strength-training.jpg" alt="Trainer ready for workout" />
+          <Image
+            src="/images/strength-training.jpg"
+            alt="Trainer ready for workout"
+            width={280}
+            height={190}
+            style={{ objectFit: "cover", objectPosition: "center top", opacity: 0.92 }}
+          />
           <strong>All-in-one solution</strong>
           <span>Manage members, sales, classes, and reports.</span>
         </div>
@@ -865,7 +891,6 @@ function Dashboard({
   attendance: AttendanceLog[];
   payments: PaymentLog[];
 }) {
-  const router = useRouter();
   const [openStat, setOpenStat] = useState<string | null>(null);
   const totalMembers = clients.length;
   const activeMembers = clients.filter((c) => c.package.status === "Active").length;
@@ -1026,7 +1051,7 @@ function Dashboard({
 
 function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
   clients: DemoClient[];
-  setClients: any;
+  setClients: (val: DemoClient[]) => void;
   settings: SharedGymContent;
   trainers: Trainer[];
   onOpenAdd: () => void;
@@ -1036,8 +1061,8 @@ function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const toggleStatus = (clientId: string) => {
-    setClients((prevClients: DemoClient[]) =>
-      prevClients.map((c) => {
+    setClients(
+      clients.map((c) => {
         if (c.id === clientId) {
           let nextStatus: "Active" | "Pending" | "Expired";
           if (c.package.status === "Active") {
@@ -1121,7 +1146,7 @@ function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
 
 function Trainers({ trainers, onOpenAdd, onOpenEdit, onDelete }: {
   trainers: Trainer[];
-  setTrainers: any;
+  setTrainers?: (val: Trainer[] | ((prev: Trainer[]) => Trainer[])) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: Trainer) => void;
   onDelete: (name: string) => void;
@@ -1134,7 +1159,7 @@ function Trainers({ trainers, onOpenAdd, onOpenEdit, onDelete }: {
       <div className="adminTrainerGrid">
         {trainers.map((t) => (
           <article className="adminTrainerCard" key={t.name} style={{ position: "relative" }}>
-            <img src={t.image || "/images/fitness-logo.jpg"} alt={t.name} />
+            <Image src={t.image || "/images/fitness-logo.jpg"} alt={t.name} width={280} height={200} style={{ objectFit: "cover", width: "100%", height: "200px" }} unoptimized />
             <span className="adminOnlineDot" />
             <div>
               <h2>{t.name}</h2>
@@ -1182,7 +1207,7 @@ function GalleryManager({ gallery, onOpenAdd, onDelete }: {
       <div className="adminGalleryGrid">
         {gallery.map((photo, index) => (
           <article className="adminGalleryCard" key={`${index}-${photo.slice(-20)}`}>
-            <img src={photo || "/images/fitness-logo.jpg"} alt={`Gallery ${index + 1}`} />
+            <Image src={photo || "/images/fitness-logo.jpg"} alt={`Gallery ${index + 1}`} width={320} height={200} style={{ objectFit: "cover", width: "100%", height: "200px" }} unoptimized />
             <div style={{ position: "absolute", top: "12px", right: "12px", background: "rgba(24, 24, 27, 0.9)", borderRadius: "8px", display: "flex", gap: "4px", padding: "4px", alignItems: "center" }}>
               {pendingDeleteUrl === photo ? (
                 <>
@@ -1214,7 +1239,7 @@ function Memberships({
   onDelete,
 }: {
   settings: SharedGymContent;
-  setSettings: any;
+  setSettings: (val: SharedGymContent | ((prev: SharedGymContent) => SharedGymContent)) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: SharedMembershipPlan) => void;
   onDelete: (key: string) => void;
@@ -1268,7 +1293,7 @@ function Blogs({
   onDelete,
 }: {
   blogs: BlogPost[];
-  setBlogs: any;
+  setBlogs: (val: BlogPost[] | ((prev: BlogPost[]) => BlogPost[])) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: BlogPost) => void;
   onDelete: (slug: string) => void;
@@ -1427,9 +1452,12 @@ function Settings({
           <input type="file" accept="image/*" onChange={handleLogoChange} />
         </label>
         {logo ? (
-          <img
+          <Image
             src={logo}
             alt="Logo preview"
+            width={100}
+            height={100}
+            unoptimized
             style={{
               width: "100px",
               height: "100px",
@@ -1504,7 +1532,7 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
                   {showActions && originalItem && (
                     <td>
                       <div className="adminTableActionRow">
-                        {onApprove && !isPending && (originalItem as any).status === "Pending" && (
+                        {onApprove && !isPending && (originalItem as Record<string, unknown>).status === "Pending" && (
                           <button
                             className="adminActionBtn"
                             onClick={() => onApprove(originalItem)}
@@ -1559,6 +1587,70 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
   );
 }
 
+// Flexible typed interface for form fields across all admin sections
+interface FormFields {
+  [key: string]: unknown;
+  id?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  weight?: string;
+  height?: string;
+  specialRequest?: string;
+  packageKey?: string;
+  status?: string;
+  startedOn?: string;
+  renewsOn?: string;
+  paymentMethod?: string;
+  sessionsUsed?: number;
+  sessionsTotal?: number;
+  trainer?: string;
+  image?: string;
+  memberSince?: string;
+  // Class / program fields
+  className?: string;
+  time?: string;
+  capacity?: string;
+  duration?: string;
+  intensity?: string;
+  targetAudience?: string;
+  benefits?: string | string[];
+  schedule?: string;
+  description?: string;
+  category?: string;
+  // Blog fields
+  title?: string;
+  date?: string;
+  author?: string;
+  readTime?: string;
+  summary?: string;
+  content?: string | string[];
+  slug?: string;
+  // Membership plan fields
+  key?: string;
+  price?: number | string;
+  access?: string;
+  features?: string | string[];
+  upcomingClasses?: string | string[];
+  highlighted?: boolean;
+  // Shop / offer fields
+  stock?: string;
+  discount?: string;
+  code?: string;
+  type?: string;
+  validTill?: string;
+  // Misc
+  specialty?: string;
+  experienceYears?: string;
+  clients?: string;
+  certificate?: string;
+  rating?: string;
+  text?: string;
+  photo?: string;
+  url?: string;
+}
+
 // Modal Form overlay component
 
 function ModalForm({
@@ -1573,14 +1665,14 @@ function ModalForm({
 }: {
   type: "add" | "edit";
   section: AdminSection;
-  item: any;
+  item: AdminItem | null;
   settings: SharedGymContent;
   trainers: Trainer[];
-  clients?: any[];
+  clients?: DemoClient[];
   onClose: () => void;
-  onSubmit: (payload: any) => void;
+  onSubmit: (payload: FormFields) => void;
 }) {
-  const [fields, setFields] = useState<any>(() => {
+  const [fields, setFields] = useState<FormFields>(() => {
     if (type === "edit" && item) {
       return { ...item };
     }
@@ -1665,6 +1757,11 @@ function ModalForm({
   });
 
   const [isCompressing, setIsCompressing] = useState(false);
+  const clientItem = isDemoClientItem(item) ? item : null;
+  const isWebsiteMemberClient =
+    section === "clients" &&
+    type === "edit" &&
+    Boolean(clientItem?.username || clientItem?.password);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -1676,20 +1773,33 @@ function ModalForm({
       if (file) {
         const reader = new FileReader();
         reader.onload = () => {
-          setFields((prev: any) => ({ ...prev, [name]: reader.result as string }));
+          setFields((prev: FormFields) => ({ ...prev, [name]: reader.result as string }));
         };
         reader.readAsDataURL(file);
       }
       return;
     }
 
-    setFields((prev: any) => {
-      const next = { ...prev, [name]: isCheckbox ? checked : value };
-      if (name === "className" && type === "text" && value) {
-        const matchedProgram = programs.find((p: any) => p.title === value);
-        if (matchedProgram) {
-          next.time = matchedProgram.schedule;
+    setFields((prev: FormFields) => {
+      const next = { ...prev };
+      next[name as keyof FormFields] = (isCheckbox ? checked : value) as never;
+      if (name === "packageKey") {
+        const activePlan = settings.membershipPlans.find((p) => p.key === value);
+        if (activePlan) {
+          next.trainer = activePlan.trainer;
+          next.sessionsTotal = fixedMembershipSessions(activePlan.key, activePlan.name, activePlan.sessionsTotal || 24);
         }
+      }
+      return next;
+    });
+  };
+
+  const handleClassNameChange = (value: string) => {
+    setFields((prev: FormFields) => {
+      const next = { ...prev, className: value };
+      const matchedProgram = programs.find((p: { title: string; schedule?: string }) => p.title === value);
+      if (matchedProgram) {
+        next.time = matchedProgram.schedule;
       }
       return next;
     });
@@ -1698,36 +1808,39 @@ function ModalForm({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    let payload = { ...fields };
+    const payload = { ...fields };
 
     if (section === "memberships") {
       payload.price = Number(payload.price);
-      payload.sessionsTotal = Number(payload.sessionsTotal);
+      payload.sessionsTotal = fixedMembershipSessions(payload.key, payload.name, Number(payload.sessionsTotal));
       payload.features = typeof payload.features === "string"
-        ? payload.features.split(",").map((f: any) => f.trim()).filter(Boolean)
+        ? (payload.features as string).split(",").map((f: string) => f.trim()).filter(Boolean)
         : payload.features;
       payload.upcomingClasses = typeof payload.upcomingClasses === "string"
-        ? payload.upcomingClasses.split(",").map((c: any) => c.trim()).filter(Boolean)
+        ? (payload.upcomingClasses as string).split(",").map((c: string) => c.trim()).filter(Boolean)
         : payload.upcomingClasses;
       if (!payload.key) {
         payload.key = payload.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
       }
+      payload.sessionsTotal = fixedMembershipSessions(payload.key, payload.name, Number(payload.sessionsTotal));
     }
 
     if (section === "clients") {
-      const pKey = payload.packageKey || (item && item.package.key) || "premium";
+      const existingPackage = clientItem?.package;
+      const pKey = isWebsiteMemberClient ? existingPackage?.key || "premium" : payload.packageKey || existingPackage?.key || "premium";
       const activePlan = settings.membershipPlans.find((p) => p.key === pKey) || settings.membershipPlans[0];
+      const planSessionsTotal = fixedMembershipSessions(activePlan.key, activePlan.name, activePlan.sessionsTotal || 24);
       payload.package = {
         key: pKey,
         name: activePlan.name,
         price: activePlan.price,
         access: activePlan.access,
-        status: payload.status,
-        startedOn: payload.startedOn,
-        renewsOn: payload.renewsOn,
-        paymentMethod: payload.paymentMethod,
+        status: type === "edit" ? existingPackage?.status : payload.status,
+        startedOn: isWebsiteMemberClient ? existingPackage?.startedOn : payload.startedOn || existingPackage?.startedOn,
+        renewsOn: isWebsiteMemberClient ? existingPackage?.renewsOn : payload.renewsOn || existingPackage?.renewsOn,
+        paymentMethod: isWebsiteMemberClient ? existingPackage?.paymentMethod : payload.paymentMethod || existingPackage?.paymentMethod,
         sessionsUsed: Number(payload.sessionsUsed),
-        sessionsTotal: Number(payload.sessionsTotal),
+        sessionsTotal: Number(payload.sessionsTotal || planSessionsTotal),
         features: activePlan.features,
         upcomingClasses: activePlan.upcomingClasses,
         trainer: payload.trainer,
@@ -1743,7 +1856,7 @@ function ModalForm({
 
     if (section === "blogs") {
       payload.content = typeof payload.content === "string"
-        ? payload.content.split("\n\n").map((p: any) => p.trim()).filter(Boolean)
+        ? (payload.content as string).split("\n\n").map((p: string) => p.trim()).filter(Boolean)
         : payload.content;
       if (!payload.slug) {
         payload.slug = payload.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -1904,25 +2017,28 @@ function ModalForm({
                   <label>Select Membership Package</label>
                   <select
                     name="packageKey"
-                    value={fields.packageKey || (item && item.package.key) || "premium"}
+                    value={fields.packageKey || clientItem?.package.key || "premium"}
                     onChange={handleChange}
+                    disabled={isWebsiteMemberClient}
                   >
                     {settings.membershipPlans.map((p) => (
                       <option key={p.key} value={p.key}>{p.name} ({formatCurrency(p.price)}/mo)</option>
                     ))}
                   </select>
                 </div>
-                <div className="adminFormGroup">
-                  <label>Account Status</label>
-                  <select name="status" value={fields.status || (item && item.package.status) || "Active"} onChange={handleChange}>
-                    <option value="Active">Active</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Expired">Expired</option>
-                  </select>
-                </div>
+                {type !== "edit" && (
+                  <div className="adminFormGroup">
+                    <label>Account Status</label>
+                    <select name="status" value={fields.status || clientItem?.package.status || "Active"} onChange={handleChange}>
+                      <option value="Active">Active</option>
+                      <option value="Pending">Pending</option>
+                      <option value="Expired">Expired</option>
+                    </select>
+                  </div>
+                )}
                 <div className="adminFormGroup">
                   <label>Assigned Personal Trainer</label>
-                  <select name="trainer" value={fields.trainer || (item && item.package.trainer) || "Mike Johnson"} onChange={handleChange}>
+                  <select name="trainer" value={fields.trainer || clientItem?.package.trainer || "Mike Johnson"} onChange={handleChange}>
                     <option value="Front Desk Support">Front Desk Support</option>
                     {trainers.map((t) => (
                       <option key={t.name} value={t.name}>{t.name}</option>
@@ -1931,23 +2047,23 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Sessions Used</label>
-                  <input type="number" name="sessionsUsed" value={fields.sessionsUsed !== undefined ? fields.sessionsUsed : (item ? item.package.sessionsUsed : 0)} onChange={handleChange} required />
+                  <input type="number" name="sessionsUsed" value={fields.sessionsUsed ?? clientItem?.package.sessionsUsed ?? 0} onChange={handleChange} required />
                 </div>
                 <div className="adminFormGroup">
                   <label>Sessions Total</label>
-                  <input type="number" name="sessionsTotal" value={fields.sessionsTotal !== undefined ? fields.sessionsTotal : (item ? item.package.sessionsTotal : 24)} onChange={handleChange} required />
+                  <input type="number" name="sessionsTotal" value={fields.sessionsTotal ?? clientItem?.package.sessionsTotal ?? 24} onChange={handleChange} required />
                 </div>
                 <div className="adminFormGroup">
                   <label>Payment Method</label>
-                  <input name="paymentMethod" value={fields.paymentMethod || (item && item.package.paymentMethod) || "Card"} onChange={handleChange} required />
+                  <input name="paymentMethod" value={fields.paymentMethod || clientItem?.package.paymentMethod || "Card"} onChange={handleChange} disabled={isWebsiteMemberClient} required />
                 </div>
                 <div className="adminFormGroup">
                   <label>Started On</label>
-                  <input name="startedOn" value={fields.startedOn || (item && item.package.startedOn) || ""} onChange={handleChange} required />
+                  <input name="startedOn" value={fields.startedOn || clientItem?.package.startedOn || ""} onChange={handleChange} disabled={isWebsiteMemberClient} required />
                 </div>
                 <div className="adminFormGroup">
                   <label>Renews On</label>
-                  <input name="renewsOn" value={fields.renewsOn || (item && item.package.renewsOn) || ""} onChange={handleChange} required />
+                  <input name="renewsOn" value={fields.renewsOn || clientItem?.package.renewsOn || ""} onChange={handleChange} disabled={isWebsiteMemberClient} required />
                 </div>
                 <div className="adminFormGroup">
                   <label>Weight (kg)</label>
@@ -1992,9 +2108,12 @@ function ModalForm({
                   <div className="adminFormGroup">
                     <label>Photo</label>
                     {fields.image && (
-                      <img
-                        src={fields.image}
+                      <Image
+                        src={fields.image as string}
                         alt="Trainer preview"
+                        width={400}
+                        height={180}
+                        unoptimized
                         style={{ width: "100%", maxHeight: "180px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
                       />
                     )}
@@ -2069,9 +2188,12 @@ function ModalForm({
                 <div className="adminFormGroup">
                   <label>Featured Image</label>
                   {fields.image && (
-                    <img
-                      src={fields.image}
+                    <Image
+                      src={fields.image as string}
                       alt="Blog preview"
+                      width={600}
+                      height={160}
+                      unoptimized
                       style={{ width: "100%", maxHeight: "160px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
                     />
                   )}
@@ -2159,7 +2281,7 @@ function ModalForm({
                   <input
                     name="code"
                     value={(fields.code || "").toUpperCase()}
-                    onChange={(e) => handleChange({ ...e, target: { ...e.target, name: "code", value: e.target.value.toUpperCase() } } as any)}
+                    onChange={(e) => handleChange({ ...e, target: { ...e.target, name: "code", value: e.target.value.toUpperCase() } } as unknown as React.ChangeEvent<HTMLInputElement>)}
                     required
                     placeholder="e.g. GYM15OFF"
                     style={{ letterSpacing: "0.05em", fontFamily: "monospace" }}
@@ -2200,9 +2322,12 @@ function ModalForm({
                 <div className="adminFormGroup">
                   <label>Product Image</label>
                   {fields.image && (
-                    <img
-                      src={fields.image}
+                    <Image
+                      src={fields.image as string}
                       alt="Product preview"
+                      width={600}
+                      height={160}
+                      unoptimized
                       style={{ width: "100%", maxHeight: "160px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
                     />
                   )}
@@ -2301,7 +2426,7 @@ function ModalForm({
                     list="program-options"
                     name="className"
                     value={fields.className || ""}
-                    onChange={handleChange}
+                    onChange={(e) => handleClassNameChange(e.target.value)}
                     placeholder="Select or type program name..."
                     required
                   />
@@ -2344,9 +2469,12 @@ function ModalForm({
                 <div className="adminFormGroup">
                   <label>Program Image</label>
                   {fields.image && (
-                    <img
-                      src={fields.image}
+                    <Image
+                      src={fields.image as string}
                       alt="Program preview"
+                      width={600}
+                      height={160}
+                      unoptimized
                       style={{ width: "100%", maxHeight: "160px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
                     />
                   )}
@@ -2459,7 +2587,7 @@ function ModalForm({
                                   onChange={(e) => {
                                     const updated = [...rows];
                                     updated[idx].day = e.target.value;
-                                    setFields((prev: any) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
+                                    setFields((prev: FormFields) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
                                   }}
                                 >
 
@@ -2479,7 +2607,7 @@ function ModalForm({
                                   onChange={(e) => {
                                     const updated = [...rows];
                                     updated[idx].workout = e.target.value;
-                                    setFields((prev: any) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
+                                    setFields((prev: FormFields) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
                                   }}
                                 />
                               </td>
@@ -2489,7 +2617,7 @@ function ModalForm({
                                   style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: "4px", padding: "6px 10px", cursor: "pointer", fontSize: "0.85rem" }}
                                   onClick={() => {
                                     const updated = rows.filter((_, i) => i !== idx);
-                                    setFields((prev: any) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
+                                    setFields((prev: FormFields) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
                                   }}
                                 >
                                   Delete
@@ -2519,7 +2647,7 @@ function ModalForm({
                     onClick={() => {
                       const rows = parseScheduleTable(fields.schedule || "");
                       const updated = [...rows, { day: "", workout: "" }];
-                      setFields((prev: any) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
+                      setFields((prev: FormFields) => ({ ...prev, schedule: serializeScheduleTable(updated) }));
                     }}
                   >
                     + Add Day & Workout
@@ -2598,9 +2726,12 @@ function ModalForm({
                 <div className="adminFormGroup">
                   <label>Gallery Photo</label>
                   {fields.image && (
-                    <img
-                      src={fields.image}
+                    <Image
+                      src={fields.image as string}
                       alt="Gallery preview"
+                      width={600}
+                      height={220}
+                      unoptimized
                       style={{ width: "100%", height: "220px", objectFit: "contain", objectPosition: "center", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46", background: "#09090b" }}
                     />
                   )}

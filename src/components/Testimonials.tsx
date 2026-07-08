@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import {
   FaStar,
   FaQuoteRight,
@@ -45,7 +46,7 @@ const getAvatarSrc = (name: string) => {
   return null;
 };
 
-const getRatingNumber = (rating: any): number => {
+const getRatingNumber = (rating: string | number): number => {
   if (typeof rating === "number") return rating;
   if (typeof rating === "string") {
     return (rating.match(/★/g) || []).length || parseInt(rating, 10) || 5;
@@ -78,7 +79,7 @@ export default function Testimonials() {
           if (parsed && parsed.name) {
             setLoggedInClientName(parsed.name);
           }
-        } catch (e) {}
+        } catch {}
       }
     }
   }, []);
@@ -267,7 +268,7 @@ export default function Testimonials() {
         <p className="eyebrow dark">What Our Members Say</p>
         <h2>Real People, Real Results</h2>
         <p style={{ margin: "0 auto", maxWidth: "600px" }}>
-          Don't just take our word for it. Hear from our members who have achieved their fitness goals with us.
+          Don&apos;t just take our word for it. Hear from our members who have achieved their fitness goals with us.
         </p>
         {/* Button moved below reviews */}
       </div>
@@ -304,7 +305,7 @@ export default function Testimonials() {
                   <article className="testimonialCard">
                     <div className="testimonialCardHeader">
                       {avatarSrc ? (
-                        <img src={avatarSrc} alt={item.customer} className="testimonialAvatar" />
+                        <Image src={avatarSrc} alt={item.customer} className="testimonialAvatar" width={78} height={78} unoptimized />
                       ) : (
                         <div
                           className="testimonialAvatar initialsAvatar"
@@ -331,7 +332,7 @@ export default function Testimonials() {
                         ))}
                       </div>
                     </div>
-                    <p className="testimonialText">"{item.reviewText}"</p>
+                    <p className="testimonialText">&quot;{item.reviewText}&quot;</p>
                     <div className="testimonialCardFooter">
                       <div>
                         <h3 className="testimonialName">{item.customer}</h3>

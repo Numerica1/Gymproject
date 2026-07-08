@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FaSpinner, FaCircleCheck, FaXmark } from "react-icons/fa6";
-import { useGymTrainers, useGymBookings, type Trainer } from "../data/gymData";
+import { useGymTrainers, useGymBookings, type Booking, type Trainer } from "../data/gymData";
 import { clientStorageKey } from "../data/clientPortal";
 
 interface TrainerBookingModalProps {
@@ -10,6 +10,8 @@ interface TrainerBookingModalProps {
   onClose: () => void;
   initialTrainerName?: string;
 }
+
+type StoredClientProfile = Partial<Record<"name" | "email" | "phone", unknown>>;
 
 // Map trainers to their related programs
 export function getProgramsForTrainer(trainerName: string, specialty: string): string[] {
@@ -87,8 +89,12 @@ export default function TrainerBookingModal({
   const [bookings, setBookings] = useGymBookings();
 
   // Filter bookable trainers (trainers and yoga instructors)
-  const bookableTrainers = allTrainers.filter(
-    (t) => t.category === "Trainers" || t.category === "Yoga Instructor"
+  const bookableTrainers = useMemo<Trainer[]>(
+    () =>
+      allTrainers.filter(
+        (t) => t.category === "Trainers" || t.category === "Yoga Instructor"
+      ),
+    [allTrainers]
   );
 
   // Form fields state
@@ -104,22 +110,31 @@ export default function TrainerBookingModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [createdBooking, setCreatedBooking] = useState<any>(null);
+  const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
 
-  // Fetch related programs based on the selected trainer
-  const currentTrainer = bookableTrainers.find((t) => t.name === selectedTrainerName);
-  const relatedPrograms = currentTrainer
-    ? getProgramsForTrainer(currentTrainer.name, currentTrainer.specialty)
-    : [
-        "Strength Training",
-        "Cardio Fitness",
-        "Yoga & Wellness",
-        "CrossFit Training",
-        "HIIT Training",
-        "Personal Training",
-        "Weight Loss Program",
-        "Nutrition Coaching",
-      ];
+  // Fetch related programs based on the selected trainer, wrapped in useMemo
+  // so the array reference is stable and doesn't re-trigger the program-selection
+  // useEffect on every render.
+  const currentTrainer = useMemo(
+    () => bookableTrainers.find((t) => t.name === selectedTrainerName),
+    [bookableTrainers, selectedTrainerName]
+  );
+  const relatedPrograms = useMemo(
+    () =>
+      currentTrainer
+        ? getProgramsForTrainer(currentTrainer.name, currentTrainer.specialty)
+        : [
+            "Strength Training",
+            "Cardio Fitness",
+            "Yoga & Wellness",
+            "CrossFit Training",
+            "HIIT Training",
+            "Personal Training",
+            "Weight Loss Program",
+            "Nutrition Coaching",
+          ],
+    [currentTrainer]
+  );
 
   // Prefill logged-in user profile & initial trainer name
   useEffect(() => {
@@ -135,10 +150,10 @@ export default function TrainerBookingModal({
       const storedClient = window.localStorage.getItem(clientStorageKey);
       if (storedClient) {
         try {
-          const client = JSON.parse(storedClient);
-          if (client.name) setClientName(client.name);
-          if (client.email) setClientEmail(client.email);
-          if (client.phone) setClientPhone(client.phone);
+          const client = JSON.parse(storedClient) as StoredClientProfile;
+          if (typeof client.name === "string") setClientName(client.name);
+          if (typeof client.email === "string") setClientEmail(client.email);
+          if (typeof client.phone === "string") setClientPhone(client.phone);
         } catch (e) {
           console.error("Error parsing logged in client info:", e);
         }
@@ -158,7 +173,7 @@ export default function TrainerBookingModal({
       setErrors({});
       setNotes("");
     }
-  }, [isOpen, initialTrainerName, allTrainers]);
+  }, [isOpen, initialTrainerName, bookableTrainers]);
 
   // Handle program pre-selection when relatedPrograms list updates
   useEffect(() => {
@@ -170,7 +185,7 @@ export default function TrainerBookingModal({
     } else {
       setSelectedProgram("");
     }
-  }, [selectedTrainerName, relatedPrograms]);
+  }, [relatedPrograms, selectedProgram]);
 
   if (!isOpen) return null;
 

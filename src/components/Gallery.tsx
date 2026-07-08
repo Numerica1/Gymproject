@@ -1,6 +1,7 @@
 "use client";
 
 import { FaStar } from "react-icons/fa6";
+import Image from "next/image";
 import { useGymGallery } from "../data/gymData";
 
 interface GalleryProps {
@@ -23,12 +24,15 @@ export default function Gallery({ isPageHeader = false }: GalleryProps) {
         <div className="galleryGrid">
           {galleryImages.length > 0 ? (
             galleryImages.map((image, index) => (
-              <img
+              <Image
                 src={image}
                 alt={`Gym interior training equipment and activities ${index + 1}`}
                 key={`${image}-${index}`}
                 className={`galleryItem item${index + 1}`}
                 id={`gallery-image-${index}`}
+                width={500}
+                height={350}
+                unoptimized
               />
             ))
           ) : (

@@ -24,10 +24,10 @@ function getHeaders(extra?: HeadersInit): HeadersInit {
   };
 }
 
-async function supabaseRequest(
+async function supabaseRequest<T = unknown>(
   path: string,
   init: RequestInit = {}
-): Promise<any> {
+): Promise<T> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
     headers: getHeaders(init.headers),
@@ -42,7 +42,17 @@ async function supabaseRequest(
         : text || response.statusText;
     throw new Error(detail);
   }
-  return payload;
+  return payload as T;
+}
+
+interface ContactMessageRow {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  subject: string | null;
+  message: string;
+  created_at: string;
 }
 
 // POST  /api/contact  – insert a new contact message into Supabase
@@ -65,7 +75,7 @@ export async function POST(request: NextRequest) {
       created_at: date || new Date().toISOString(),
     };
 
-    const rows = await supabaseRequest(TABLE, {
+    const rows = await supabaseRequest<ContactMessageRow[] | ContactMessageRow>(TABLE, {
       method: "POST",
       body: JSON.stringify(row),
     });

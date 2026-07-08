@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { defaultGymContent, type SharedGymContent, type SharedMembershipPlan } from "./sharedGymContent";
+import { defaultGymContent, type SharedGymContent } from "./sharedGymContent";
 import { demoClients, type DemoClient } from "./clientPortal";
 import { blogPosts, type BlogPost } from "./blogs";
 export type { BlogPost };
@@ -42,6 +42,14 @@ export const GYM_DATA_CHANGED_EVENT = "fitness-bhaktapur-data-changed";
 const GYM_API_BASE_URL = process.env.NEXT_PUBLIC_GYM_API_URL || "";
 const GYM_SYNC_INTERVAL_MS = Number(process.env.NEXT_PUBLIC_GYM_SYNC_INTERVAL_MS || "0");
 
+function normalizeMembershipPlanSessions<T extends { key: string; name: string; sessionsTotal: number }>(plan: T): T {
+  const normalized = `${plan.key} ${plan.name}`.toLowerCase();
+  if (normalized.includes("basic")) return { ...plan, sessionsTotal: 15 };
+  if (normalized.includes("standard")) return { ...plan, sessionsTotal: 20 };
+  if (normalized.includes("premium")) return { ...plan, sessionsTotal: 30 };
+  return plan;
+}
+
 function getGymDataUrl(key: string) {
   const encodedKey = encodeURIComponent(key);
 
@@ -63,10 +71,12 @@ function normalizeGymDataValue<T>(key: string, value: T): T {
   return {
     ...settings,
     currency: "Rs",
-    membershipPlans: settings.membershipPlans?.map((plan) => ({
-      ...plan,
-      price: usedOldCurrency && plan.price > 0 && plan.price < 100 ? plan.price * 100 : plan.price,
-    })),
+    membershipPlans: settings.membershipPlans?.map((plan) =>
+      normalizeMembershipPlanSessions({
+        ...plan,
+        price: usedOldCurrency && plan.price > 0 && plan.price < 100 ? plan.price * 100 : plan.price,
+      })
+    ),
   } as T;
 }
 
@@ -282,12 +292,15 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
 }
 
 export async function saveGymData<T>(key: string, value: T): Promise<T> {
+  // Helper type: records fetched from Supabase may carry an extra `id` field
+  type WithId<U> = U & { id?: string };
+
   // Try to save to Supabase tables for structured data
   try {
     if (key === GYM_CLIENTS_KEY && Array.isArray(value)) {
       // Sync clients to Supabase
       await Promise.all(
-        value.map((client: any) => {
+        (value as WithId<DemoClient>[]).map((client) => {
           if (client.id) {
             return supabaseClients.update(client.id, client).catch(() => supabaseClients.create(client));
           }
@@ -297,7 +310,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_TRAINERS_KEY && Array.isArray(value)) {
       // Sync trainers to Supabase
       await Promise.all(
-        value.map((trainer: any) => {
+        (value as WithId<Trainer>[]).map((trainer) => {
           if (trainer.id) {
             return supabaseTrainers.update(trainer.id, trainer).catch(() => supabaseTrainers.create(trainer));
           }
@@ -307,7 +320,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_CLASSES_KEY && Array.isArray(value)) {
       // Sync classes to Supabase
       await Promise.all(
-        value.map((cls: any) => {
+        (value as WithId<ClassSchedule>[]).map((cls) => {
           if (cls.id) {
             return supabaseClasses.update(cls.id, cls).catch(() => supabaseClasses.create(cls));
           }
@@ -317,7 +330,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_PRODUCTS_KEY && Array.isArray(value)) {
       // Sync products to Supabase
       await Promise.all(
-        value.map((product: any) => {
+        (value as WithId<Product>[]).map((product) => {
           if (product.id) {
             return supabaseProducts.update(product.id, product).catch(() => supabaseProducts.create(product));
           }
@@ -327,7 +340,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_OFFERS_KEY && Array.isArray(value)) {
       // Sync offers to Supabase
       await Promise.all(
-        value.map((offer: any) => {
+        (value as WithId<Offer>[]).map((offer) => {
           if (offer.id) {
             return supabaseOffers.update(offer.id, offer).catch(() => supabaseOffers.create(offer));
           }
@@ -337,7 +350,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_ORDERS_KEY && Array.isArray(value)) {
       // Sync orders to Supabase
       await Promise.all(
-        value.map((order: any) => {
+        (value as WithId<OrderLog>[]).map((order) => {
           if (order.id) {
             return supabaseOrders.update(order.id, order).catch(() => supabaseOrders.create(order));
           }
@@ -347,7 +360,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_REVIEWS_KEY && Array.isArray(value)) {
       // Sync reviews to Supabase
       await Promise.all(
-        value.map((review: any) => {
+        (value as WithId<Review>[]).map((review) => {
           if (review.id) {
             return supabaseReviews.update(review.id, review).catch(() => supabaseReviews.create(review));
           }
@@ -357,7 +370,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_PAYMENTS_KEY && Array.isArray(value)) {
       // Sync payments to Supabase
       await Promise.all(
-        value.map((payment: any) => {
+        (value as WithId<PaymentLog>[]).map((payment) => {
           if (payment.id) {
             return supabasePayments.update(payment.id, payment).catch(() => supabasePayments.create(payment));
           }
@@ -367,7 +380,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_ATTENDANCE_KEY && Array.isArray(value)) {
       // Sync attendance to Supabase
       await Promise.all(
-        value.map((attendance: any) => {
+        (value as WithId<AttendanceLog>[]).map((attendance) => {
           if (attendance.id) {
             return supabaseAttendance.update(attendance.id, attendance).catch(() => supabaseAttendance.create(attendance));
           }
@@ -377,7 +390,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_BOOKINGS_KEY && Array.isArray(value)) {
       // Sync bookings to Supabase
       await Promise.all(
-        value.map((booking: any) => {
+        (value as WithId<Booking>[]).map((booking) => {
           if (booking.id) {
             return supabaseBookings.update(booking.id, booking).catch(() => supabaseBookings.create(booking));
           }
@@ -387,7 +400,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
     } else if (key === GYM_CONTACT_MESSAGES_KEY && Array.isArray(value)) {
       // Sync contact messages to Supabase
       await Promise.all(
-        value.map((message: any) => {
+        (value as ContactMessage[]).map((message) => {
           if (message.id) {
             return supabaseContactMessages.create(message).catch(() => {});
           }
@@ -415,8 +428,8 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
 }
 
 // Client-side cache to persist state across component remounts during client-side navigation
-const clientCache: Record<string, any> = {};
-const pendingFetches: Record<string, Promise<any> | undefined> = {};
+const clientCache: Record<string, unknown> = {};
+const pendingFetches: Record<string, Promise<unknown> | undefined> = {};
 
 function fetchGymDataOnce<T>(key: string, seed: T): Promise<T> {
   if (!pendingFetches[key]) {
@@ -443,7 +456,7 @@ export function useGymState<T>(key: string, seed: T): [T, (val: T) => void] {
     clientCache[key] = localVal;
 
     const refreshFromApi = async () => {
-      // Suppress polling for 10 seconds after any local write
+      // Suppress polling for 10 seconds after a local write
       if (Date.now() - lastWriteRef.current < 10000) return;
 
       try {
@@ -599,13 +612,13 @@ export function parseScheduleTable(scheduleStr: string | undefined): ScheduleRow
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) {
-        return parsed.map((item: any) => ({
+        return parsed.map((item: Record<string, unknown>) => ({
           day: String(item.day || item.days || "").trim(),
           workout: String(item.workout || item.workouts || "").trim()
         }));
       }
-    } catch (e) {
-      // fallback
+    } catch {
+      // fallback to pipe/dash format parsing below
     }
   }
 
@@ -640,4 +653,3 @@ export function parseScheduleTable(scheduleStr: string | undefined): ScheduleRow
 export function serializeScheduleTable(rows: ScheduleRow[]): string {
   return JSON.stringify(rows);
 }
-

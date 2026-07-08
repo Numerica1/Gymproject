@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGymTrainers } from "../data/gymData";
+import Image from "next/image";
 import TrainerBookingModal from "./TrainerBookingModal";
 
 export default function AboutTrainers() {
@@ -31,7 +32,13 @@ export default function AboutTrainers() {
       <div className="about-trainers-grid">
         {mainTrainers.map((trainer) => (
           <div className="about-trainer-card" key={trainer.name}>
-            <img src={trainer.image || "/images/fitness-logo.jpg"} alt={trainer.name} />
+            <Image
+              src={trainer.image || "/images/fitness-logo.jpg"}
+              alt={trainer.name}
+              fill
+              style={{ objectFit: "cover" }}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
             <div className="about-trainer-overlay">
               <h3>{trainer.name}</h3>
               <p>{trainer.specialty}</p>

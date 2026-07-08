@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import Image from "next/image";
 import { useGymTrainers } from "../data/gymData";
 import TrainerBookingModal from "./TrainerBookingModal";
 
@@ -61,7 +61,7 @@ function TeamCarousel({ title, members, onBookNow, canBook = false }: TeamCarous
         <div className="trainerGrid" style={{ justifyContent: "center" }}>
           {visibleMembers.map((member) => (
             <article className="trainerCard" key={member.name}>
-              <img src={member.image || "/images/fitness-logo.jpg"} alt="" />
+              <Image src={member.image || "/images/fitness-logo.jpg"} alt="" width={300} height={300} />
               <div className="trainerCardBody">
                 <h3>{member.name}</h3>
                 {member.specialty && <p>{member.specialty}</p>}

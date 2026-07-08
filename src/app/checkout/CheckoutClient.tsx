@@ -1179,7 +1179,7 @@ export default function CheckoutClient() {
                   Your membership will be activated by staff once payment is confirmed.
                 </p>
                 <button type="button" className="gymPayBtn" onClick={handlePayAtGym}>
-                  Confirm — I'll Pay at the Gym
+                  Confirm — I&apos;ll Pay at the Gym
                 </button>
               </div>
             ) : (

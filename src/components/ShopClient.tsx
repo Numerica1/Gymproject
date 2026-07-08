@@ -1,22 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   FaCartShopping,
-  FaCheck,
   FaMinus,
   FaPlus,
-  FaShieldHalved,
-  FaTrash,
 } from "react-icons/fa6";
+import Image from "next/image";
 import {
-  useGymOrders,
   useGymProducts,
-  type OrderLog,
   type Product,
 } from "../data/gymData";
-import { clientStorageKey, type DemoClient } from "../data/clientPortal";
 import { formatCurrency } from "../data/currency";
 
 type CartItem = {
@@ -32,14 +27,6 @@ const productImages = [
   "/images/fitness-logo.jpg",
 ];
 
-function parsePrice(price: string) {
-  const value = Number(price.replace(/[^0-9.]/g, ""));
-  return Number.isFinite(value) ? value : 0;
-}
-
-function formatMoney(value: number) {
-  return formatCurrency(value, { decimals: 2 });
-}
 
 function getProductImage(product: Product, index: number) {
   if (product.image) return product.image;
@@ -54,35 +41,9 @@ const SHOP_CART_STORAGE_KEY = "fitness-shop-cart";
 
 export default function ShopClient() {
   const router = useRouter();
-  const [products, setProducts] = useGymProducts();
-  const [orders, setOrders] = useGymOrders();
+  const [products] = useGymProducts();
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [customerName, setCustomerName] = useState("");
-  const [customerEmail, setCustomerEmail] = useState("");
-  const [pickupOption, setPickupOption] = useState("Reception Desk");
-  const [pickupAddress, setPickupAddress] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("Cash on Pickup");
-  const [message, setMessage] = useState("");
-
   const activeProducts = products.filter((product) => product.status === "Active");
-
-  useEffect(() => {
-    const storedClient = window.localStorage.getItem(clientStorageKey);
-    if (!storedClient) return;
-
-    try {
-      const client = JSON.parse(storedClient) as DemoClient;
-      setCustomerName(client.name || "");
-      setCustomerEmail(client.email || "");
-      setPickupOption("Reception Desk");
-      setPickupAddress(client.address || "");
-    } catch {
-      setCustomerName("");
-      setCustomerEmail("");
-      setPickupOption("Reception Desk");
-      setPickupAddress("");
-    }
-  }, []);
 
   useEffect(() => {
     const storedCart = window.localStorage.getItem(SHOP_CART_STORAGE_KEY);
@@ -100,14 +61,6 @@ export default function ShopClient() {
     window.localStorage.setItem(SHOP_CART_STORAGE_KEY, JSON.stringify(nextCart));
   };
 
-  const cartTotal = useMemo(
-    () =>
-      cart.reduce(
-        (total, item) => total + parsePrice(item.product.price) * item.quantity,
-        0
-      ),
-    [cart]
-  );
 
   const cartCount = cart.reduce((total, item) => total + item.quantity, 0);
 
@@ -139,70 +92,7 @@ export default function ShopClient() {
     router.push("/cart");
   };
 
-  const placeOrder = () => {
-    if (!cart.length) {
-      setMessage("Add at least one product to your cart.");
-      return;
-    }
 
-    if (!customerName.trim()) {
-      setMessage("Enter your name before placing the order.");
-      return;
-    }
-
-    if (!customerEmail.trim()) {
-      setMessage("Enter your email address before placing the order.");
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(customerEmail.trim())) {
-      setMessage("Please enter a valid email address.");
-      return;
-    }
-
-    if (!pickupAddress.trim()) {
-      setMessage("Enter pickup address in the Pickup Point row.");
-      return;
-    }
-
-    const orderDate = new Date().toLocaleDateString("en-US", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-
-    const order: OrderLog = {
-      orderId: `#${Math.floor(1000 + Math.random() * 9000)}`,
-      customer: customerName.trim(),
-      items: cart
-        .map((item) => `${item.product.name} x${item.quantity}`)
-        .join(", "),
-      total: formatMoney(cartTotal),
-      payment: paymentMethod === "Cash on Pickup" ? "Pending" : "Paid",
-      status: "Processing",
-      date: orderDate,
-      email: customerEmail.trim(),
-      pickupPoint: pickupOption === "Reception Desk" ? "Reception Desk" : pickupAddress.trim(),
-      address: pickupAddress.trim() || "Reception Desk",
-      paymentMethod,
-    } as OrderLog;
-
-    const nextProducts = products.map((product) => {
-      const cartItem = cart.find((item) => item.product.name === product.name);
-      if (!cartItem) return product;
-
-      const currentStock = Number(product.stock) || 0;
-      return {
-        ...product,
-        stock: String(Math.max(0, currentStock - cartItem.quantity)),
-      };
-    });
-
-    setOrders([order, ...orders]);
-    setProducts(nextProducts);
-    setCart([]);
-    setMessage(`Order ${order.orderId} placed successfully.`);
-  };
 
   return (
     <section className="shopPage">
@@ -243,7 +133,7 @@ export default function ShopClient() {
 
             return (
               <article className="shopProductCard" key={`${product.name}-${index}`}>
-                <img src={getProductImage(product, index)} alt={product.name} />
+                 <Image src={getProductImage(product, index)} alt={product.name} width={350} height={250} style={{ objectFit: "cover" }} unoptimized />
                 <div>
                   <span>{product.category}</span>
                   <h2>{product.name}</h2>

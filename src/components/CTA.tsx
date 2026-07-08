@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -18,17 +18,26 @@ interface CTAProps {
   isPageHeader?: boolean;
 }
 
-export default function CTA({ isPageHeader = false }: CTAProps) {
-  const [showForm, setShowForm] = useState(false);
-  const Heading = isPageHeader ? "h1" : "h2";
-  const [content] = useGymSettings();
+/**
+ * Inner component that reads search params.
+ * Must be a separate component so it can be wrapped in <Suspense>.
+ */
+function CTASearchParamsReader({ onFormParam }: { onFormParam: () => void }) {
   const searchParams = useSearchParams();
 
   useEffect(() => {
     if (searchParams.get("form") === "true") {
-      setShowForm(true);
+      onFormParam();
     }
-  }, [searchParams]);
+  }, [searchParams, onFormParam]);
+
+  return null;
+}
+
+export default function CTA({ isPageHeader = false }: CTAProps) {
+  const [showForm, setShowForm] = useState(false);
+  const Heading = isPageHeader ? "h1" : "h2";
+  const [content] = useGymSettings();
 
   if (showForm) {
     return <ContactForm />;
@@ -36,6 +45,11 @@ export default function CTA({ isPageHeader = false }: CTAProps) {
 
   return (
     <section id="contact" className="contact">
+      {/* Read ?form=true from URL safely inside a Suspense boundary */}
+      <Suspense fallback={null}>
+        <CTASearchParamsReader onFormParam={() => setShowForm(true)} />
+      </Suspense>
+
       <div>
         <p className="eyebrow">
           <FaArrowRight /> Ready to Transform Your Body?

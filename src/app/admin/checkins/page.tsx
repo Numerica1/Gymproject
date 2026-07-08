@@ -24,7 +24,7 @@ export default function CheckinsPage() {
         <Link href="/admin" className="adminPrimaryButton">
           Back to Dashboard
         </Link>
-        <h1 style={{ margin: 0 }}>Today's Check-ins</h1>
+        <h1 style={{ margin: 0 }}>Today&apos;s Check-ins</h1>
       </header>
 
       <section style={{ marginBottom: 32 }}>
