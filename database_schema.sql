@@ -157,16 +157,54 @@ create policy "Anyone can view classes"
   on public.classes for select using (true);
 
 -- =============================================================
--- 5. PRODUCTS (Shop Items)
+-- 5. BRANDS (Shop Product Collections)
+-- =============================================================
+create table if not exists public.brands (
+  id              uuid        primary key default gen_random_uuid(),
+  name            text        not null,
+  brand_key       text        unique,
+  logo_url        text,
+  banner_url      text,
+  description     text,
+  status          text        not null default 'Active',
+  source_payload  jsonb       not null default '{}'::jsonb,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists idx_brands_name on public.brands (name);
+create index if not exists idx_brands_brand_key on public.brands (brand_key);
+create index if not exists idx_brands_status on public.brands (status);
+create unique index if not exists ux_brands_brand_key on public.brands (brand_key);
+
+drop trigger if exists brands_set_updated_at on public.brands;
+create trigger brands_set_updated_at
+  before update on public.brands
+  for each row execute function public.set_updated_at();
+
+alter table public.brands enable row level security;
+
+drop policy if exists "Anyone can view brands" on public.brands;
+create policy "Anyone can view brands"
+  on public.brands for select using (true);
+
+-- =============================================================
+-- 6. PRODUCTS (Shop Items)
 -- =============================================================
 create table if not exists public.products (
   id              uuid          primary key default gen_random_uuid(),
+  brand_id        uuid          references public.brands (id) on delete set null,
+  brand_key       text,
+  brand_name      text,
   name            text          not null,
   description     text,
   price           numeric(10,2) not null,
   stock           integer       not null default 0,
   image_url       text,
   category        text,
+  flavor          text,
+  size_label      text,
+  rating          numeric(3,2)  not null default 0,
   product_key     text          unique,
   status          text          not null default 'Active',
   source_payload  jsonb         not null default '{}'::jsonb,
@@ -174,7 +212,30 @@ create table if not exists public.products (
   updated_at      timestamptz   not null default now()
 );
 
+alter table public.products add column if not exists brand_id uuid references public.brands (id) on delete set null;
+alter table public.products add column if not exists brand_key text;
+alter table public.products add column if not exists brand_name text;
+alter table public.products add column if not exists flavor text;
+alter table public.products add column if not exists size_label text;
+alter table public.products add column if not exists rating numeric(3,2) not null default 0;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'products_brand_id_fkey'
+      and conrelid = 'public.products'::regclass
+  ) then
+    alter table public.products
+      add constraint products_brand_id_fkey
+      foreign key (brand_id) references public.brands (id) on delete set null;
+  end if;
+end $$;
+
 create index if not exists idx_products_category on public.products (category);
+create index if not exists idx_products_brand_id on public.products (brand_id);
+create index if not exists idx_products_brand_key on public.products (brand_key);
 create index if not exists idx_products_name     on public.products (name);
 create index if not exists idx_products_product_key on public.products (product_key);
 create unique index if not exists ux_products_product_key on public.products (product_key);

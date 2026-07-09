@@ -62,13 +62,32 @@ interface SupabaseClass {
 
 interface SupabaseProduct {
   id: string;
+  brand_id?: string;
+  brand_key?: string;
+  brand_name?: string;
   name: string;
   description?: string;
   price: number;
   stock: number;
   image_url?: string;
   category?: string;
+  flavor?: string;
+  size_label?: string;
+  rating?: number;
   product_key?: string;
+  status: string;
+  source_payload?: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SupabaseBrand {
+  id: string;
+  name: string;
+  brand_key?: string;
+  logo_url?: string;
+  banner_url?: string;
+  description?: string;
   status: string;
   source_payload?: unknown;
   created_at: string;
@@ -226,10 +245,25 @@ type GymClassPayload = SourcePayload & Partial<{
 
 type GymProductPayload = SourcePayload & Partial<{
   name: string;
+  brandKey: string;
+  brandName: string;
   category: string;
+  flavor: string;
+  size: string;
   price: string;
+  rating: string;
   stock: string;
   image: string;
+  status: string;
+  description: string;
+}>;
+
+type GymBrandPayload = SourcePayload & Partial<{
+  key: string;
+  name: string;
+  logo: string;
+  banner: string;
+  description: string;
   status: string;
 }>;
 
@@ -460,11 +494,16 @@ function fromSupabaseClass(supabaseClass: SupabaseClass): SourcePayload {
 function toSupabaseProduct(product: GymProductPayload): SupabaseInsert<SupabaseProduct> {
   return {
     name: product.name,
-    description: product.category,
+    description: product.description || product.category,
     price: parseFloat((product.price || "").replace(/[^\d.]/g, "")) || 0,
     stock: parseInt(product.stock || "") || 0,
     image_url: product.image,
+    brand_key: product.brandKey,
+    brand_name: product.brandName,
     category: product.category,
+    flavor: product.flavor,
+    size_label: product.size,
+    rating: parseFloat(product.rating || "") || 0,
     product_key: product.name?.toLowerCase().replace(/\s+/g, "-"),
     status: product.status,
     source_payload: product,
@@ -472,13 +511,54 @@ function toSupabaseProduct(product: GymProductPayload): SupabaseInsert<SupabaseP
 }
 
 function fromSupabaseProduct(supabaseProduct: SupabaseProduct): SourcePayload {
+  const source = isSourcePayload(supabaseProduct.source_payload)
+    ? supabaseProduct.source_payload
+    : {};
+
   return {
+    ...source,
+    id: supabaseProduct.id,
     name: supabaseProduct.name,
+    brandKey: supabaseProduct.brand_key ?? source.brandKey,
+    brandName: supabaseProduct.brand_name ?? source.brandName,
     category: supabaseProduct.category || supabaseProduct.description,
+    flavor: supabaseProduct.flavor ?? source.flavor,
+    size: supabaseProduct.size_label ?? source.size,
     price: `Rs ${supabaseProduct.price}`,
+    rating: String(supabaseProduct.rating || source.rating || "4.5"),
     stock: supabaseProduct.stock.toString(),
     status: supabaseProduct.status,
     image: supabaseProduct.image_url,
+    description: supabaseProduct.description,
+  };
+}
+
+function toSupabaseBrand(brand: GymBrandPayload): SupabaseInsert<SupabaseBrand> {
+  return {
+    name: brand.name,
+    brand_key: brand.key || brand.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+    logo_url: brand.logo,
+    banner_url: brand.banner,
+    description: brand.description,
+    status: brand.status || "Active",
+    source_payload: brand,
+  };
+}
+
+function fromSupabaseBrand(supabaseBrand: SupabaseBrand): SourcePayload {
+  const source = isSourcePayload(supabaseBrand.source_payload)
+    ? supabaseBrand.source_payload
+    : {};
+
+  return {
+    ...source,
+    id: supabaseBrand.id,
+    key: supabaseBrand.brand_key || source.key || supabaseBrand.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    name: supabaseBrand.name,
+    logo: supabaseBrand.logo_url || source.logo,
+    banner: supabaseBrand.banner_url || source.banner,
+    description: supabaseBrand.description || source.description,
+    status: supabaseBrand.status || source.status || "Active",
   };
 }
 
@@ -677,6 +757,13 @@ export const supabaseProducts = {
   create: (product: Record<string, unknown>) => supabasePost("products", toSupabaseProduct(product)),
   update: (id: string, product: Record<string, unknown>) => supabaseUpdate("products", id, toSupabaseProduct(product)),
   delete: (id: string) => supabaseDelete("products", id),
+};
+
+export const supabaseBrands = {
+  get: () => supabaseGet<SupabaseBrand>("brands").then(data => data.map(fromSupabaseBrand)),
+  create: (brand: Record<string, unknown>) => supabasePost("brands", toSupabaseBrand(brand)),
+  update: (id: string, brand: Record<string, unknown>) => supabaseUpdate("brands", id, toSupabaseBrand(brand)),
+  delete: (id: string) => supabaseDelete("brands", id),
 };
 
 export const supabaseOffers = {

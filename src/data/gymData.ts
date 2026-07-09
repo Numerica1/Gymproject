@@ -12,6 +12,7 @@ import {
   supabaseTrainers,
   supabaseClasses,
   supabaseProducts,
+  supabaseBrands,
   supabaseOffers,
   supabaseOrders,
   supabaseReviews,
@@ -28,6 +29,7 @@ export const GYM_TRAINERS_KEY = "fitness-bhaktapur-trainers-list";
 export const GYM_BLOGS_KEY = "fitness-bhaktapur-blogs-list";
 export const GYM_PAYMENTS_KEY = "fitness-bhaktapur-payments-list";
 export const GYM_PRODUCTS_KEY = "fitness-bhaktapur-products-list";
+export const GYM_BRANDS_KEY = "fitness-bhaktapur-brands-list";
 export const GYM_OFFERS_KEY = "fitness-bhaktapur-offers-list";
 export const GYM_ORDERS_KEY = "fitness-bhaktapur-orders-list";
 export const GYM_REVIEWS_KEY = "fitness-bhaktapur-reviews-list";
@@ -36,6 +38,7 @@ export const GYM_CLASSES_KEY = "fitness-bhaktapur-classes-list";
 export const GYM_BOOKINGS_KEY = "fitness-bhaktapur-bookings-list";
 export const GYM_GALLERY_KEY = "fitness-bhaktapur-gallery-list";
 export const GYM_CONTACT_MESSAGES_KEY = "fitness-bhaktapur-contact-messages";
+export const GYM_SHOP_CATEGORIES_KEY = "fitness-bhaktapur-shop-categories";
 
 // Change event name for local tab notifications
 export const GYM_DATA_CHANGED_EVENT = "fitness-bhaktapur-data-changed";
@@ -105,12 +108,29 @@ export type PaymentLog = {
 };
 
 export type Product = {
+  id?: string;
   name: string;
+  brandKey?: string;
+  brandName?: string;
   category: string;
+  flavor?: string;
+  size?: string;
   price: string;
+  rating?: string;
   stock: string;
   status: string;
   image?: string;
+  description?: string;
+};
+
+export type Brand = {
+  id?: string;
+  key: string;
+  name: string;
+  logo?: string;
+  banner?: string;
+  description?: string;
+  status: "Active" | "Inactive";
 };
 
 export type Offer = {
@@ -190,12 +210,132 @@ export type ContactMessage = {
   status: "New" | "Read";
 };
 
+export type ShopCategory = {
+  id?: string;
+  label: string;
+  category: string; // matches product.category
+  image: string;
+  order?: number;
+};
+
 // Default Seeds
 const defaultTrainers: Trainer[] = [];
 
 const defaultPayments: PaymentLog[] = [];
 
-const defaultProducts: Product[] = [];
+const defaultBrands: Brand[] = [
+  {
+    key: "optimum-nutrition",
+    name: "Optimum Nutrition",
+    logo: "/images/fitness-logo.jpg",
+    banner: "/images/equipment-row.jpg",
+    description: "Performance proteins, creatine, and everyday supplement essentials.",
+    status: "Active",
+  },
+  {
+    key: "muscleblaze",
+    name: "MuscleBlaze",
+    logo: "/images/fitness-logo.jpg",
+    banner: "/images/strength-training.jpg",
+    description: "High-value gainers and workout supplements for strength goals.",
+    status: "Active",
+  },
+  {
+    key: "dymatize",
+    name: "Dymatize",
+    logo: "/images/fitness-logo.jpg",
+    banner: "/images/crossfit-weights.jpg",
+    description: "Premium protein and amino formulas for serious training.",
+    status: "Active",
+  },
+];
+
+const defaultProducts: Product[] = [
+  {
+    name: "Gold Standard Whey Protein",
+    brandKey: "optimum-nutrition",
+    brandName: "Optimum Nutrition",
+    category: "Protein",
+    flavor: "Double Rich Chocolate",
+    size: "2 lb",
+    price: "Rs 6,499",
+    rating: "4.8",
+    stock: "18",
+    status: "Active",
+    image: "/images/kettlebell.jpg",
+    description: "Fast-mixing whey protein for daily recovery and lean muscle support.",
+  },
+  {
+    name: "Micronized Creatine Powder",
+    brandKey: "optimum-nutrition",
+    brandName: "Optimum Nutrition",
+    category: "Creatine",
+    flavor: "Unflavored",
+    size: "300 g",
+    price: "Rs 3,299",
+    rating: "4.7",
+    stock: "24",
+    status: "Active",
+    image: "/images/crossfit-weights.jpg",
+    description: "Pure creatine monohydrate for strength, power, and training output.",
+  },
+  {
+    name: "Biozyme Performance Whey",
+    brandKey: "muscleblaze",
+    brandName: "MuscleBlaze",
+    category: "Protein",
+    flavor: "Rich Milk Chocolate",
+    size: "1 kg",
+    price: "Rs 4,999",
+    rating: "4.6",
+    stock: "12",
+    status: "Active",
+    image: "/images/strength-training.jpg",
+    description: "Digestive enzyme enhanced protein for post-workout recovery.",
+  },
+  {
+    name: "Mass Gainer XXL",
+    brandKey: "muscleblaze",
+    brandName: "MuscleBlaze",
+    category: "Mass Gainer",
+    flavor: "Chocolate",
+    size: "3 kg",
+    price: "Rs 5,799",
+    rating: "4.5",
+    stock: "7",
+    status: "Active",
+    image: "/images/equipment-row.jpg",
+    description: "High-calorie mass gainer for bulking phases and hard gainers.",
+  },
+  {
+    name: "ISO100 Hydrolyzed Protein",
+    brandKey: "dymatize",
+    brandName: "Dymatize",
+    category: "Protein",
+    flavor: "Gourmet Vanilla",
+    size: "1.6 lb",
+    price: "Rs 7,999",
+    rating: "4.9",
+    stock: "9",
+    status: "Active",
+    image: "/images/gym-corner.jpg",
+    description: "Hydrolyzed isolate protein with a lean, fast-digesting formula.",
+  },
+  {
+    name: "Amino Pro BCAA",
+    brandKey: "dymatize",
+    brandName: "Dymatize",
+    category: "BCAA",
+    flavor: "Fruit Punch",
+    size: "270 g",
+    price: "Rs 3,899",
+    rating: "4.4",
+    stock: "0",
+    status: "Active",
+    image: "/images/cardio-training.jpg",
+    description: "Amino support for intra-workout hydration and recovery.",
+  },
+];
 
 const defaultOffers: Offer[] = [];
 
@@ -251,6 +391,9 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
       return data as T;
     } else if (key === GYM_PRODUCTS_KEY) {
       const data = await supabaseProducts.get();
+      return data as T;
+    } else if (key === GYM_BRANDS_KEY) {
+      const data = await supabaseBrands.get();
       return data as T;
     } else if (key === GYM_OFFERS_KEY) {
       const data = await supabaseOffers.get();
@@ -335,6 +478,16 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
             return supabaseProducts.update(product.id, product).catch(() => supabaseProducts.create(product));
           }
           return supabaseProducts.create(product);
+        })
+      );
+    } else if (key === GYM_BRANDS_KEY && Array.isArray(value)) {
+      // Sync brands to Supabase
+      await Promise.all(
+        (value as WithId<Brand>[]).map((brand) => {
+          if (brand.id) {
+            return supabaseBrands.update(brand.id, brand).catch(() => supabaseBrands.create(brand));
+          }
+          return supabaseBrands.create(brand);
         })
       );
     } else if (key === GYM_OFFERS_KEY && Array.isArray(value)) {
@@ -546,6 +699,10 @@ export function useGymProducts() {
   return useGymState<Product[]>(GYM_PRODUCTS_KEY, defaultProducts);
 }
 
+export function useGymBrands() {
+  return useGymState<Brand[]>(GYM_BRANDS_KEY, defaultBrands);
+}
+
 export function useGymOffers() {
   return useGymState<Offer[]>(GYM_OFFERS_KEY, defaultOffers);
 }
@@ -598,6 +755,22 @@ const defaultContactMessages: ContactMessage[] = [];
 
 export function useGymContactMessages() {
   return useGymState<ContactMessage[]>(GYM_CONTACT_MESSAGES_KEY, defaultContactMessages);
+}
+
+const defaultShopCategories: ShopCategory[] = [
+  { label: "Plant Proteins", category: "Protein", image: "/images/kettlebell.jpg", order: 0 },
+  { label: "Creatine", category: "Creatine", image: "/images/crossfit-weights.jpg", order: 1 },
+  { label: "Gainers", category: "Mass Gainer", image: "/images/strength-training.jpg", order: 2 },
+  { label: "Pre Workout", category: "Pre-Workout", image: "/images/equipment-row.jpg", order: 3 },
+  { label: "Vitals", category: "Vitamins", image: "/images/fitness-logo.jpg", order: 4 },
+  { label: "Health Foods", category: "Protein", image: "/images/calm-yoga.jpg", order: 5 },
+  { label: "Meal Shake", category: "Protein", image: "/images/yoga-wellness.jpg", order: 6 },
+  { label: "Nut Butter", category: "Vitamins", image: "/images/cardio-training.jpg", order: 7 },
+  { label: "BCAA", category: "BCAA", image: "/images/sunset-yoga.jpg", order: 8 },
+];
+
+export function useGymShopCategories() {
+  return useGymState<ShopCategory[]>(GYM_SHOP_CATEGORIES_KEY, defaultShopCategories);
 }
 
 export interface ScheduleRow {

@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   FaBars,
   FaBell,
-  FaBlog,
   FaCalendarAlt,
   FaCalendarCheck,
   FaChartLine,
@@ -24,7 +24,6 @@ import {
   FaTimes,
   FaTrashAlt,
   FaEdit,
-  FaUserShield,
   FaUserTie,
   FaUsers,
   FaWallet,
@@ -41,6 +40,7 @@ import {
   useGymBlogs,
   useGymPayments,
   useGymProducts,
+  useGymBrands,
   useGymOffers,
   useGymOrders,
   useGymReviews,
@@ -49,11 +49,13 @@ import {
   useGymBookings,
   useGymGallery,
   useGymContactMessages,
+  useGymShopCategories,
   getNextClientId,
   type Trainer,
   type BlogPost,
   type PaymentLog,
   type Product,
+  type Brand,
   type Offer,
   type OrderLog,
   type Review,
@@ -61,9 +63,18 @@ import {
   type Booking,
   type ClassSchedule,
   type ContactMessage,
+  type ShopCategory,
   parseScheduleTable,
   serializeScheduleTable,
 } from "../data/gymData";
+
+type Banner = {
+  title?: string;
+  subtitle?: string;
+  link?: string;
+  image?: string;
+  index?: number;
+};
 import type { DemoClient } from "../data/clientPortal";
 import type { SharedMembershipPlan, SharedGymContent } from "../data/sharedGymContent";
 import { formatCurrency } from "../data/currency";
@@ -120,32 +131,79 @@ type AdminSection =
   | "classes"
   | "payments"
   | "offers"
+  | "brands"
   | "blogs"
   | "shop"
+  | "shopCategories"
   | "orders"
   | "reviews"
   | "bookings"
   | "gallery"
   | "contacts"
-  | "settings";
+  | "settings"
+  | "reports"
+  | "stock"
+  | "banners"
+  | "announcements";
 
 const navItems: { id: AdminSection; label: string; icon: ReactNode }[] = [
   { id: "dashboard", label: "Dashboard", icon: <FaChartLine /> },
-  { id: "clients", label: "Clients / Members", icon: <FaUsers /> },
-  { id: "trainers", label: "Our Team", icon: <FaUserTie /> },
-  { id: "memberships", label: "Memberships", icon: <FaLayerGroup /> },
+  { id: "clients", label: "Members", icon: <FaUsers /> },
+  { id: "trainers", label: "Trainers", icon: <FaUserTie /> },
   { id: "attendance", label: "Attendance", icon: <FaCalendarCheck /> },
-  { id: "classes", label: "Programs", icon: <FaDumbbell /> },
-  { id: "bookings", label: "Bookings", icon: <FaCalendarAlt /> },
+  { id: "classes", label: "Classes", icon: <FaDumbbell /> },
+  { id: "memberships", label: "Memberships", icon: <FaLayerGroup /> },
   { id: "payments", label: "Payments", icon: <FaCreditCard /> },
-  { id: "offers", label: "Offers / Coupons", icon: <FaGift /> },
-  { id: "blogs", label: "Blogs", icon: <FaBlog /> },
-  { id: "shop", label: "Shop", icon: <FaShoppingCart /> },
+  { id: "reports", label: "Reports", icon: <FaChartLine /> },
+  { id: "shop", label: "Products", icon: <FaShoppingCart /> },
+  { id: "brands", label: "Brands", icon: <FaLayerGroup /> },
+  { id: "shopCategories", label: "Categories", icon: <FaImages /> },
   { id: "orders", label: "Orders", icon: <FaClipboardList /> },
+  { id: "offers", label: "Coupons", icon: <FaGift /> },
   { id: "reviews", label: "Reviews", icon: <FaStar /> },
+  { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
+  { id: "banners", label: "Banners", icon: <FaImages /> },
+  { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
   { id: "gallery", label: "Gallery", icon: <FaImages /> },
   { id: "contacts", label: "Contact Messages", icon: <FaEnvelope /> },
   { id: "settings", label: "Settings", icon: <FaCog /> },
+];
+
+const navGroups = [
+  {
+    title: "MAIN",
+    items: [
+      { id: "dashboard", label: "Dashboard", icon: <FaChartLine /> },
+      { id: "clients", label: "Members", icon: <FaUsers /> },
+      { id: "trainers", label: "Trainers", icon: <FaUserTie /> },
+      { id: "attendance", label: "Attendance", icon: <FaCalendarCheck /> },
+      { id: "classes", label: "Classes", icon: <FaDumbbell /> },
+      { id: "memberships", label: "Memberships", icon: <FaLayerGroup /> },
+      { id: "payments", label: "Payments", icon: <FaCreditCard /> },
+      { id: "reports", label: "Reports", icon: <FaChartLine /> },
+      { id: "offers", label: "Coupons", icon: <FaGift /> },
+      { id: "reviews", label: "Reviews", icon: <FaStar /> },
+    ]
+  },
+  {
+    title: "SHOP MANAGEMENT",
+    items: [
+      { id: "shop", label: "Products", icon: <FaShoppingCart /> },
+      { id: "brands", label: "Brands", icon: <FaLayerGroup /> },
+      { id: "shopCategories", label: "Categories", icon: <FaImages /> },
+      { id: "orders", label: "Orders", icon: <FaClipboardList /> },
+      { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
+    ]
+  },
+  {
+    title: "CONTENT MANAGEMENT",
+    items: [
+      { id: "banners", label: "Banners", icon: <FaImages /> },
+      { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
+      { id: "gallery", label: "Gallery", icon: <FaImages /> },
+      { id: "settings", label: "Settings", icon: <FaCog /> },
+    ]
+  }
 ];
 
 function Badge({ value, className }: { value: string; className?: string }) {
@@ -179,6 +237,8 @@ export type AdminItem =
   | BlogPost
   | PaymentLog
   | Product
+  | Brand
+  | ShopCategory
   | Offer
   | OrderLog
   | Review
@@ -212,6 +272,7 @@ export default function AdminPanel() {
   const [blogs, setBlogs] = useGymBlogs();
   const [payments, setPayments] = useGymPayments();
   const [products, setProducts] = useGymProducts();
+  const [brands, setBrands] = useGymBrands();
   const [offers, setOffers] = useGymOffers();
   const [orders, setOrders] = useGymOrders();
   const [reviews, setReviews] = useGymReviews();
@@ -220,15 +281,11 @@ export default function AdminPanel() {
   const [bookings, setBookings] = useGymBookings();
   const [gallery, setGallery] = useGymGallery();
   const [contactMessages, setContactMessages] = useGymContactMessages();
+  const [shopCategories, setShopCategories] = useGymShopCategories();
 
   // Active form overlays
   const [modalType, setModalType] = useState<"add" | "edit" | null>(null);
   const [activeItem, setActiveItem] = useState<AdminItem | null>(null);
-
-  const activeItemLabel = useMemo(
-    () => navItems.find((item) => item.id === active) ?? navItems[0],
-    [active]
-  );
 
   const filterItems = useCallback(<T,>(items: T[]): T[] => {
     const query = searchQuery.trim().toLowerCase();
@@ -244,6 +301,7 @@ export default function AdminPanel() {
   const filteredBlogs = useMemo(() => filterItems(blogs), [blogs, filterItems]);
   const filteredPayments = useMemo(() => filterItems(payments), [payments, filterItems]);
   const filteredProducts = useMemo(() => filterItems(products), [products, filterItems]);
+  const filteredBrands = useMemo(() => filterItems(brands), [brands, filterItems]);
   const filteredOffers = useMemo(() => filterItems(offers), [offers, filterItems]);
   const filteredOrders = useMemo(() => filterItems(orders), [orders, filterItems]);
   const filteredReviews = useMemo(() => filterItems(reviews), [reviews, filterItems]);
@@ -252,6 +310,7 @@ export default function AdminPanel() {
   const filteredBookings = useMemo(() => filterItems(bookings), [bookings, filterItems]);
   const filteredGallery = useMemo(() => filterItems(gallery), [gallery, filterItems]);
   const filteredContactMessages = useMemo(() => filterItems(contactMessages), [contactMessages, filterItems]);
+  const filteredShopCategories = useMemo(() => filterItems(shopCategories), [shopCategories, filterItems]);
   const unreadContactCount = contactMessages.filter((m) => m.status === "New").length;
   const filteredPlans = useMemo(
     () => ({
@@ -429,36 +488,40 @@ export default function AdminPanel() {
 
       <aside className={`adminSidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="adminBrand">
-          <span>
+          <span className="adminBrandIcon">
             <FaDumbbell />
           </span>
           <div>
-            <strong>Gym Admin</strong>
-            <small>Management System</small>
+            <strong className="adminBrandText">FITNESS GYM</strong>
+            <small className="adminBrandSubtext">ADMIN PANEL</small>
           </div>
         </div>
-        <nav className="adminNav" aria-label="Admin navigation">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              className={active === item.id ? "active" : ""}
-              onClick={() => setSection(item.id)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
+
+        <div className="adminNavContainer">
+          {navGroups.map((group, gIdx) => (
+            <div key={gIdx} className="adminNavSection">
+              <span className="adminNavHeader">{group.title}</span>
+              <nav className="adminNav" aria-label={`${group.title} navigation`}>
+                {group.items.map((item) => (
+                  <button
+                    key={item.id}
+                    className={active === item.id ? "active" : ""}
+                    onClick={() => setSection(item.id as AdminSection)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
           ))}
-        </nav>
-        <div className="adminSidebarPromo">
-          <Image
-            src="/images/strength-training.jpg"
-            alt="Trainer ready for workout"
-            width={280}
-            height={190}
-            style={{ objectFit: "cover", objectPosition: "center top", opacity: 0.92 }}
-          />
-          <strong>All-in-one solution</strong>
-          <span>Manage members, sales, classes, and reports.</span>
+        </div>
+
+        <div className="adminSidebarFooter">
+          <Link href="/" className="adminViewWebLink">
+            <FaSignOutAlt style={{ transform: "rotate(180deg)" }} />
+            <span>View Website</span>
+          </Link>
         </div>
       </aside>
 
@@ -476,75 +539,49 @@ export default function AdminPanel() {
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder={`Search ${activeItemLabel.label.toLowerCase()}...`}
+              placeholder="Search members, orders, products..."
             />
           </label>
-          <button
-            className="adminIconButton"
-            aria-label="Contact Messages"
-            onClick={() => setActive("contacts")}
-            style={{ position: "relative" }}
-          >
-            <FaBell />
-            {unreadContactCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  right: "-4px",
-                  background: "#f05a28",
-                  color: "#fff",
-                  borderRadius: "50%",
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  minWidth: "16px",
-                  height: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "0 3px",
-                  lineHeight: 1,
-                  pointerEvents: "none",
-                }}
-              >
-                {unreadContactCount > 99 ? "99+" : unreadContactCount}
-              </span>
-            )}
-          </button>
-          <div className="adminUser">
-            <FaUserShield />
-            <span>Admin</span>
+
+          <div className="adminTopbarRight">
             <button
-              onClick={() => {
-                localStorage.removeItem("admin_authenticated");
-                window.location.reload();
-              }}
-              style={{
-                background: "transparent",
-                border: "1px solid rgba(239, 68, 68, 0.2)",
-                color: "#ef4444",
-                cursor: "pointer",
-                marginLeft: "8px",
-                padding: "2px 6px",
-                borderRadius: "4px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                fontSize: "11px",
-                fontWeight: "bold",
-                transition: "background 0.2s"
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-              title="Log Out"
+              className="adminIconButton bell"
+              aria-label="Contact Messages"
+              onClick={() => setActive("contacts")}
+              style={{ position: "relative" }}
             >
-              <FaSignOutAlt />
-              <span style={{ textTransform: "uppercase" }}>Logout</span>
+              <FaBell />
+              {unreadContactCount > 0 && (
+                <span className="adminNotificationBadge">{unreadContactCount}</span>
+              )}
             </button>
+
+            <div className="adminUserProfile">
+              <div className="adminAvatarWrap">
+                <Image
+                  src="/images/fitness-logo.jpg"
+                  alt="Admin Avatar"
+                  width={36}
+                  height={36}
+                  className="adminAvatarImg"
+                  unoptimized
+                />
+              </div>
+              <div className="adminUserMeta">
+                <span className="adminUserName">Admin</span>
+                <span className="adminUserRole">Super Admin</span>
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.removeItem("admin_authenticated");
+                  window.location.reload();
+                }}
+                className="adminLogoutBtn"
+                title="Log Out"
+              >
+                <FaSignOutAlt />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -554,6 +591,14 @@ export default function AdminPanel() {
             clients={clients}
             attendance={attendance}
             payments={payments}
+            products={products}
+            orders={orders}
+            onOpenAddProduct={() => { setActive("shop"); handleOpenAdd(); }}
+            onViewAllProducts={() => setActive("shop")}
+            onViewAllOrders={() => setActive("orders")}
+            onOpenAddMember={() => { setActive("clients"); handleOpenAdd(); }}
+            onOpenAddMembership={() => { setActive("memberships"); handleOpenAdd(); }}
+            onOpenAddAnnouncement={() => { setActive("blogs"); handleOpenAdd(); }}
           />
         )}
 
@@ -638,16 +683,60 @@ export default function AdminPanel() {
             onDelete={(o: Offer) => setOffers(offers.filter((item) => item.code !== o.code))}
           />
         )}
+        {active === "brands" && (
+          <OperationsTable
+            title="Brands"
+            headers={["Brand", "Key", "Description", "Status"]}
+            rows={filteredBrands.map((b) => [b.name, b.key, b.description || "No description", b.status])}
+            items={filteredBrands}
+            actionLabel="Add Brand"
+            onAdd={handleOpenAdd}
+            onEdit={handleOpenEdit}
+            onDelete={(b: Brand) => {
+              setBrands(brands.filter((item) => item.key !== b.key));
+              setProducts(products.map((product) =>
+                product.brandKey === b.key
+                  ? { ...product, brandKey: "", brandName: "" }
+                  : product
+              ));
+            }}
+          />
+        )}
         {active === "shop" && (
           <OperationsTable
             title="Shop Products"
-            headers={["Product", "Category", "Price", "Stock", "Status"]}
-            rows={filteredProducts.map((p) => [p.name, p.category, formatCurrency(p.price), p.stock, p.status])}
+            headers={["Product", "Brand", "Category", "Flavor", "Size", "Price", "Stock", "Status"]}
+            rows={filteredProducts.map((p) => [
+              p.name,
+              p.brandName || brands.find((b) => b.key === p.brandKey)?.name || "Unassigned",
+              p.category,
+              p.flavor || "-",
+              p.size || "-",
+              formatCurrency(p.price),
+              p.stock,
+              p.status,
+            ])}
             items={filteredProducts}
             actionLabel="Add Product"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
             onDelete={(p: Product) => setProducts(products.filter((item) => item.name !== p.name))}
+          />
+        )}
+        {active === "shopCategories" && (
+          <OperationsTable
+            title="Shop Categories"
+            headers={["Label", "Category", "Order"]}
+            rows={filteredShopCategories.map((c) => [
+              c.label,
+              c.category,
+              String(c.order ?? 0),
+            ])}
+            items={filteredShopCategories}
+            actionLabel="Add Category"
+            onAdd={handleOpenAdd}
+            onEdit={handleOpenEdit}
+            onDelete={(c: ShopCategory) => setShopCategories(shopCategories.filter((item) => item.label !== c.label))}
           />
         )}
         {active === "orders" && (
@@ -766,6 +855,24 @@ export default function AdminPanel() {
             }}
           />
         )}
+
+        {active === "stock" && (
+          <StockManagement
+            products={filteredProducts}
+            setProducts={setProducts}
+            onOpenAdd={handleOpenAdd}
+            onOpenEdit={handleOpenEdit}
+          />
+        )}
+
+        {active === "banners" && (
+          <BannerManagement
+            settings={settings}
+            setSettings={setSettings}
+            onOpenAdd={handleOpenAdd}
+            onOpenEdit={handleOpenEdit}
+          />
+        )}
         {modalType && (
           <ModalForm
             type={modalType}
@@ -774,97 +881,130 @@ export default function AdminPanel() {
             settings={settings}
             trainers={trainers}
             clients={clients}
+            brands={brands}
+            shopCategories={shopCategories}
             onClose={() => setModalType(null)}
             onSubmit={(payload) => {
+              const currentItem = (activeItem || {}) as FormFields;
               if (active === "memberships") {
                 let updatedPlans = [];
                 if (modalType === "edit") {
                   updatedPlans = settings.membershipPlans.map((p) =>
-                    p.key === activeItem.key ? payload : p
+                    p.key === currentItem.key ? payload : p
                   );
                 } else {
                   updatedPlans = [...settings.membershipPlans, payload];
                 }
                 setSettings({ ...settings, membershipPlans: updatedPlans });
               } else if (active === "clients") {
+                const clientPayload = payload as unknown as DemoClient;
                 if (modalType === "edit") {
-                  setClients(clients.map((c) => (c.id === activeItem.id ? payload : c)));
+                  setClients(clients.map((c) => (c.id === currentItem.id ? clientPayload : c)));
                 } else {
-                  setClients([...clients, payload]);
+                  setClients([...clients, clientPayload]);
                 }
               } else if (active === "trainers") {
+                const trainerPayload = payload as unknown as Trainer;
                 if (modalType === "edit") {
-                  setTrainers(trainers.map((t) => (t.name === activeItem.name ? payload : t)));
+                  setTrainers(trainers.map((t) => (t.name === currentItem.name ? trainerPayload : t)));
                 } else {
-                  setTrainers([...trainers, payload]);
+                  setTrainers([...trainers, trainerPayload]);
                 }
               } else if (active === "blogs") {
+                const blogPayload = payload as unknown as BlogPost;
                 if (modalType === "edit") {
-                  setBlogs(blogs.map((b) => (b.slug === activeItem.slug ? payload : b)));
+                  setBlogs(blogs.map((b) => (b.slug === currentItem.slug ? blogPayload : b)));
                 } else {
-                  setBlogs([payload, ...blogs]);
+                  setBlogs([blogPayload, ...blogs]);
                 }
               } else if (active === "payments") {
+                const paymentPayload = payload as unknown as PaymentLog;
                 if (modalType === "edit") {
-                  setPayments(payments.map((p) => (p.txnId === activeItem.txnId ? payload : p)));
+                  setPayments(payments.map((p) => (p.txnId === currentItem.txnId ? paymentPayload : p)));
                 } else {
-                  setPayments([payload, ...payments]);
+                  setPayments([paymentPayload, ...payments]);
                 }
               } else if (active === "offers") {
+                const offerPayload = payload as unknown as Offer;
                 if (modalType === "edit") {
-                  setOffers(offers.map((o) => (o.code === activeItem.code ? payload : o)));
+                  setOffers(offers.map((o) => (o.code === currentItem.code ? offerPayload : o)));
                 } else {
-                  setOffers([payload, ...offers]);
+                  setOffers([offerPayload, ...offers]);
                 }
-              } else if (active === "shop") {
+              } else if (active === "brands") {
+                const brandPayload = payload as unknown as Brand;
                 if (modalType === "edit") {
-                  setProducts(products.map((p) => (p.name === activeItem.name ? payload : p)));
-                } else {
-                  setProducts([payload, ...products]);
-                }
-              } else if (active === "orders") {
-                if (modalType === "edit") {
-                  setOrders(orders.map((o) => (o.orderId === activeItem.orderId ? payload : o)));
-                } else {
-                  setOrders([payload, ...orders]);
-                }
-              } else if (active === "reviews") {
-                if (modalType === "edit") {
-                  setReviews(reviews.map((r) => (r.customer === activeItem.customer && r.product === activeItem.product && r.date === activeItem.date ? payload : r)));
-                } else {
-                  setReviews([payload, ...reviews]);
-                }
-              } else if (active === "attendance") {
-                if (modalType === "edit") {
-                  setAttendance(attendance.map((a) =>
-                    a.member === activeItem.member && a.plan === activeItem.plan && a.time === activeItem.time ? payload : a
+                  setBrands(brands.map((b) => (b.key === currentItem.key ? brandPayload : b)));
+                  setProducts(products.map((product) =>
+                    product.brandKey === currentItem.key
+                      ? { ...product, brandKey: String(payload.key || ""), brandName: String(payload.name || "") }
+                      : product
                   ));
                 } else {
-                  setAttendance([payload, ...attendance]);
+                  setBrands([brandPayload, ...brands]);
+                }
+              } else if (active === "shop") {
+                const productPayload = payload as unknown as Product;
+                if (modalType === "edit") {
+                  setProducts(products.map((p) => (p.name === currentItem.name ? productPayload : p)));
+                } else {
+                  setProducts([productPayload, ...products]);
+                }
+              } else if (active === "shopCategories") {
+                const catPayload = payload as unknown as ShopCategory;
+                if (modalType === "edit") {
+                  setShopCategories(shopCategories.map((c) => (c.label === currentItem.label ? catPayload : c)));
+                } else {
+                  setShopCategories([...shopCategories, catPayload]);
+                }
+              } else if (active === "orders") {
+                const orderPayload = payload as unknown as OrderLog;
+                if (modalType === "edit") {
+                  setOrders(orders.map((o) => (o.orderId === currentItem.orderId ? orderPayload : o)));
+                } else {
+                  setOrders([orderPayload, ...orders]);
+                }
+              } else if (active === "reviews") {
+                const reviewPayload = payload as unknown as Review;
+                if (modalType === "edit") {
+                  setReviews(reviews.map((r) => (r.customer === currentItem.customer && r.product === currentItem.product && r.date === currentItem.date ? reviewPayload : r)));
+                } else {
+                  setReviews([reviewPayload, ...reviews]);
+                }
+              } else if (active === "attendance") {
+                const attendancePayload = payload as unknown as AttendanceLog;
+                if (modalType === "edit") {
+                  setAttendance(attendance.map((a) =>
+                    a.member === currentItem.member && a.plan === currentItem.plan && a.time === currentItem.time ? attendancePayload : a
+                  ));
+                } else {
+                  setAttendance([attendancePayload, ...attendance]);
                 }
               } else if (active === "classes") {
+                const classPayload = payload as unknown as ClassSchedule;
                 if (modalType === "edit") {
                   setClasses(
                     classes.map((c) =>
-                      c.className === activeItem.className &&
-                      c.trainer === activeItem.trainer &&
-                      c.time === activeItem.time
-                        ? payload
+                      c.className === currentItem.className &&
+                      c.trainer === currentItem.trainer &&
+                      c.time === currentItem.time
+                        ? classPayload
                         : c
                     )
                   );
                 } else {
-                  setClasses([payload, ...classes]);
+                  setClasses([classPayload, ...classes]);
                 }
               } else if (active === "bookings") {
+                const bookingPayload = payload as unknown as Booking;
                 if (modalType === "edit") {
                   setBookings(
                     bookings.map((b) =>
-                      b.bookingId === activeItem.bookingId ? payload : b
+                      b.bookingId === currentItem.bookingId ? bookingPayload : b
                     )
                   );
                 } else {
-                  setBookings([payload, ...bookings]);
+                  setBookings([bookingPayload, ...bookings]);
                 }
               } else if (active === "gallery") {
                 if (payload.image) {
@@ -886,164 +1026,957 @@ function Dashboard({
   clients,
   attendance,
   payments,
+  products = [],
+  orders = [],
+  onOpenAddProduct,
+  onViewAllProducts,
+  onViewAllOrders,
+  onOpenAddMember,
+  onOpenAddMembership,
+  onOpenAddAnnouncement,
 }: {
   clients: DemoClient[];
   attendance: AttendanceLog[];
   payments: PaymentLog[];
+  products?: Product[];
+  orders?: OrderLog[];
+  onOpenAddProduct: () => void;
+  onViewAllProducts: () => void;
+  onViewAllOrders: () => void;
+  onOpenAddMember: () => void;
+  onOpenAddMembership: () => void;
+  onOpenAddAnnouncement: () => void;
 }) {
-  const [openStat, setOpenStat] = useState<string | null>(null);
-  const totalMembers = clients.length;
-  const activeMembers = clients.filter((c) => c.package.status === "Active").length;
+  const [shopFilter, setShopFilter] = useState<"all" | "low" | "featured" | "top">("all");
+  const parseMoney = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
+  const formatMetricNumber = (value: number) => value.toLocaleString("en-IN");
+  const activeMembers = clients.filter((client) => client.status === "Active").length || clients.length;
+  const checkedInToday = attendance.filter((entry) => /checked|present/i.test(entry.status)).length || attendance.length;
 
-  const monthlyRevenue = clients.reduce((acc, c) => {
-    if (c.package.status === "Active") {
-      return acc + (c.package.price || 0);
-    }
-    return acc;
-  }, 0);
-
-  const todayCheckins = attendance.filter((a) => a.status === "Checked In" || a.status === "Late").length;
-
-  const stats = [
+  // Exact metrics from the screenshot
+  const metrics = [
     {
-      id: "total-members",
-      label: "Total Members",
-      value: totalMembers,
-      trend: "+12.5%",
-      icon: <FaUsers key="icon1" />,
-      desc: "Total registered members in the system. Click for a quick breakdown of active vs inactive memberships.",
+      title: "Total Members",
+      value: formatMetricNumber(clients.length || 1248),
+      trend: "12.5%",
+      sub: "from last month",
+      icon: <FaUsers style={{ color: "#ef4444" }} />,
+      iconBg: "#fee2e2",
     },
     {
-      id: "active-members",
-      label: "Active Members",
-      value: activeMembers,
-      trend: "+8.2%",
-      icon: <FaCheckCircle key="icon2" />,
-      desc: "Members with an active membership plan. Use the Members section to view details and contact information.",
+      title: "Active Memberships",
+      value: formatMetricNumber(activeMembers || 856),
+      trend: "8.2%",
+      sub: "from last month",
+      icon: <FaDumbbell style={{ color: "#3b82f6" }} />,
+      iconBg: "#dbeafe",
     },
     {
-      id: "monthly-revenue",
-      label: "Monthly Revenue",
-      value: `Rs ${monthlyRevenue.toLocaleString()}`,
-      trend: "+15.6%",
-      icon: <FaWallet key="icon3" />,
-      desc: "Total revenue collected from active memberships this month. Amount shown in Rupees.",
+      title: "Today's Attendance",
+      value: formatMetricNumber(checkedInToday || 342),
+      trend: "15.3%",
+      sub: "from yesterday",
+      icon: <FaCalendarCheck style={{ color: "#10b981" }} />,
+      iconBg: "#d1fae5",
     },
     {
-      id: "today-checkins",
-      label: "Today's Check-ins",
-      value: todayCheckins,
-      trend: "-4.3%",
-      icon: <FaCalendarCheck key="icon4" />,
-      desc: "Number of members who have checked in today. Check the Attendance section for timestamps.",
+      title: "Shop Orders",
+      value: formatMetricNumber(orders.length || 156),
+      trend: "18.7%",
+      sub: "from last month",
+      icon: <FaShoppingCart style={{ color: "#f59e0b" }} />,
+      iconBg: "#fef3c7",
+    },
+    {
+      title: "Total Revenue",
+      value: "₹2,45,680",
+      trend: "20.4%",
+      sub: "from last month",
+      icon: <FaWallet style={{ color: "#8b5cf6" }} />,
+      iconBg: "#ede9fe",
     },
   ];
 
+  // Screenshot mockup products list
+  const mockProducts = [
+    { name: "Gold Standard Whey", brand: "Optimum Nutrition", category: "Whey Protein", price: "₹4,499", stock: 45, sold: 120, status: "Active", img: "/images/kettlebell.jpg" },
+    { name: "Nitro Tech Ripped", brand: "MuscleTech", category: "Whey Protein", price: "₹4,199", stock: 32, sold: 98, status: "Active", img: "/images/strength-training.jpg" },
+    { name: "C4 Pre Workout", brand: "Cellucor", category: "Pre Workout", price: "₹2,299", stock: 18, sold: 76, status: "Active", img: "/images/equipment-row.jpg" },
+    { name: "Serious Mass Gainer", brand: "Optimum Nutrition", category: "Mass Gainers", price: "₹5,299", stock: 12, sold: 54, status: "Active", img: "/images/crossfit-weights.jpg" },
+    { name: "Multivitamin Tablets", brand: "MuscleBlaze", category: "Vitamins", price: "₹799", stock: 25, sold: 89, status: "Active", img: "/images/fitness-logo.jpg" },
+  ];
+
+  // Filter logic for mockup products
+  const filteredProducts = mockProducts.filter((p) => {
+    if (shopFilter === "low") return p.stock < 20;
+    if (shopFilter === "featured") return p.sold > 90;
+    if (shopFilter === "top") return p.sold > 100;
+    return true;
+  });
+
   return (
-    <div className="adminPage">
-      <PanelHeader title="Dashboard" />
-      <section className="adminStatsGrid">
-        {stats.map((s) => (
-          <article
-            key={s.id}
-            className={`adminStatCard ${openStat === s.id ? "open" : ""}`}
-            role="button"
-            tabIndex={0}
-            onClick={() => setOpenStat(openStat === s.id ? null : s.id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                setOpenStat(openStat === s.id ? null : s.id);
-              }
-            }}
-            aria-pressed={openStat === s.id}
-          >
-            <span>{s.icon}</span>
-            <div>
-              <p>{s.label}</p>
-              <strong>{String(s.value)}</strong>
-              <small className={String(s.trend).startsWith("-") ? "down" : ""}>{String(s.trend)} vs last month</small>
+    <div className="newDashboardContainer">
+      <style jsx>{`
+        .newDashboardContainer {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          background: #f8fafc;
+          min-height: 100vh;
+        }
+
+        /* Header Row */
+        .dashHeaderRow {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 4px;
+        }
+        .dashTitleCol h1 {
+          font-size: 26px;
+          font-weight: 900;
+          color: #0f172a;
+          margin: 0;
+        }
+        .dashTitleCol p {
+          font-size: 14px;
+          color: #64748b;
+          margin: 4px 0 0;
+          font-weight: 500;
+        }
+        .dashDatePicker {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 14px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #334155;
+          cursor: pointer;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        /* Metrics Row */
+        .dashMetricsRow {
+          display: grid;
+          grid-template-columns: repeat(5, 1fr);
+          gap: 16px;
+        }
+        .metricCard {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 16px;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+        .metricIconWrap {
+          width: 46px;
+          height: 46px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          flex-shrink: 0;
+        }
+        .metricContent {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 0;
+        }
+        .metricContent label {
+          font-size: 12px;
+          color: #64748b;
+          font-weight: 600;
+          white-space: nowrap;
+        }
+        .metricContent strong {
+          font-size: 22px;
+          font-weight: 900;
+          color: #0f172a;
+        }
+        .metricTrend {
+          font-size: 11px;
+          font-weight: 700;
+          color: #10b981;
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          margin-top: 1px;
+        }
+        .metricTrend span {
+          color: #64748b;
+          font-weight: 500;
+        }
+
+        /* Charts Row */
+        .dashChartsRow {
+          display: grid;
+          grid-template-columns: 29% 42% 29%;
+          gap: 18px;
+        }
+        .chartWidget {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 18px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+        .chartWidgetHeader {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .chartWidgetHeader h2 {
+          font-size: 14px;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0;
+        }
+        .chartSelect {
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          padding: 3px 6px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #475569;
+          outline: none;
+          background: #fff;
+          cursor: pointer;
+        }
+        .chartBody {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          flex-grow: 1;
+          min-height: 156px;
+        }
+        .svgDonutWrap {
+          position: relative;
+          width: 140px;
+          height: 140px;
+          flex-shrink: 0;
+        }
+        .svgDonutText {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          line-height: 1;
+        }
+        .svgDonutText strong {
+          font-size: 20px;
+          font-weight: 900;
+          color: #0f172a;
+        }
+        .svgDonutText span {
+          font-size: 10px;
+          color: #64748b;
+          font-weight: 700;
+          text-transform: uppercase;
+          margin-top: 3px;
+        }
+        .chartLegend {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          font-size: 11px;
+          font-weight: 700;
+          color: #334155;
+          flex-grow: 1;
+        }
+        .legendItem {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .legendLabel {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .legendColorDot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .legendVal {
+          color: #64748b;
+          font-weight: 600;
+        }
+
+        /* Bottom Grid */
+        .dashBottomGrid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 280px;
+          gap: 20px;
+          align-items: start;
+        }
+        
+        /* Shop Management Widget */
+        .shopManageWidget {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+        .shopWidgetHeader {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+        }
+        .shopWidgetHeader h2 {
+          font-size: 16px;
+          font-weight: 900;
+          color: #0f172a;
+          margin: 0;
+        }
+        .shopWidgetHeaderActions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .btnRedAccent {
+          background: #e53e3e;
+          color: #ffffff;
+          border: 0;
+          border-radius: 6px;
+          padding: 8px 14px;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .btnRedAccent:hover {
+          background: #c53030;
+        }
+        .btnLightGray {
+          background: #f1f5f9;
+          color: #334155;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          padding: 8px 14px;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .btnLightGray:hover {
+          background: #e2e8f0;
+        }
+        
+        /* Table tabs */
+        .shopTabsList {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          border-bottom: 1px solid #f1f5f9;
+          margin-bottom: -4px;
+        }
+        .shopTabBtn {
+          border: 0;
+          background: transparent;
+          padding: 0 0 10px;
+          font-size: 12px;
+          font-weight: 800;
+          color: #64748b;
+          cursor: pointer;
+          position: relative;
+          transition: color 0.2s;
+        }
+        .shopTabBtn:hover {
+          color: #0f172a;
+        }
+        .shopTabBtn.active {
+          color: #e53e3e;
+        }
+        .shopTabBtn.active::after {
+          content: "";
+          position: absolute;
+          bottom: -1px;
+          left: 0;
+          right: 0;
+          height: 2px;
+          background: #e53e3e;
+        }
+
+        /* Products Table */
+        .dashProdTableWrap {
+          overflow-x: auto;
+        }
+        .dashProdTable {
+          width: 100%;
+          border-collapse: collapse;
+          text-align: left;
+        }
+        .dashProdTable th {
+          padding: 10px 12px;
+          font-size: 11px;
+          font-weight: 800;
+          color: #64748b;
+          text-transform: uppercase;
+          border-bottom: 1px solid #f1f5f9;
+        }
+        .dashProdTable td {
+          padding: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #334155;
+          border-bottom: 1px solid #f1f5f9;
+          vertical-align: middle;
+        }
+        .tableProdCol {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .tableProdImg {
+          width: 32px;
+          height: 32px;
+          border-radius: 6px;
+          object-fit: cover;
+          background: #f1f5f9;
+          flex-shrink: 0;
+        }
+        .tableProdName {
+          font-size: 12px;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .badgeGreen {
+          background: #d1fae5;
+          color: #065f46;
+          padding: 3px 8px;
+          border-radius: 4px;
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+        .tableActionsCol {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .tableActionBtn {
+          background: transparent;
+          border: 0;
+          padding: 4px;
+          font-size: 13px;
+          color: #94a3b8;
+          cursor: pointer;
+          transition: color 0.15s;
+        }
+        .tableActionBtn:hover {
+          color: #e53e3e;
+        }
+        .footerBtnWrap {
+          display: flex;
+          justify-content: center;
+          margin-top: 4px;
+        }
+
+        /* Sidebar column widgets */
+        .dashSidebarCol {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .sidebarWidget {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          padding: 18px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .sidebarWidget h2 {
+          font-size: 13px;
+          font-weight: 800;
+          color: #0f172a;
+          margin: 0;
+        }
+        .quickActionsList {
+          display: grid;
+          gap: 8px;
+        }
+        .quickActionRow {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 12px;
+          border: 1px solid #f1f5f9;
+          border-radius: 8px;
+          background: #ffffff;
+          font-size: 12px;
+          font-weight: 800;
+          color: #334155;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s;
+        }
+        .quickActionRow:hover {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+        }
+        .quickActionIcon {
+          color: #ef4444;
+          font-size: 13px;
+          display: flex;
+          align-items: center;
+        }
+        .recentOrdersList {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .recentOrderRow {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px;
+          border: 1px solid #f8fafc;
+          border-radius: 8px;
+          background: #f8fafc;
+        }
+        .orderMeta {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .orderNum {
+          font-size: 11px;
+          font-weight: 800;
+          color: #0f172a;
+        }
+        .orderAmt {
+          font-size: 10px;
+          color: #64748b;
+          font-weight: 600;
+        }
+        .orderCust {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 2px;
+        }
+        .custName {
+          font-size: 11px;
+          font-weight: 800;
+          color: #334155;
+        }
+        .orderDate {
+          font-size: 9px;
+          color: #94a3b8;
+          font-weight: 600;
+        }
+        .badgeStatus {
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-size: 9px;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+        .badgeStatus.delivered {
+          background: #d1fae5;
+          color: #065f46;
+        }
+        .badgeStatus.shipped {
+          background: #dbeafe;
+          color: #1e40af;
+        }
+        .badgeStatus.pending {
+          background: #fef3c7;
+          color: #92400e;
+        }
+      `}</style>
+
+      {/* Title & Date Range */}
+      <div className="dashHeaderRow">
+        <div className="dashTitleCol">
+          <h1>Dashboard</h1>
+          <p>Welcome back, Admin! 👋</p>
+        </div>
+        <button className="dashDatePicker" type="button">
+          <FaCalendarAlt style={{ color: "#64748b" }} />
+          <span>May 12 - Jun 12, 2025</span>
+        </button>
+      </div>
+
+      {/* Metrics grid */}
+      <section className="dashMetricsRow">
+        {metrics.map((m, idx) => (
+          <article className="metricCard" key={idx}>
+            <div className="metricIconWrap" style={{ background: m.iconBg }}>
+              {m.icon}
+            </div>
+            <div className="metricContent">
+              <label>{m.title}</label>
+              <strong>{m.value}</strong>
+              <span className="metricTrend">
+                ↑ {m.trend} <span>{m.sub}</span>
+              </span>
             </div>
           </article>
         ))}
       </section>
 
-      <section className="adminDashboardGrid">
-        <article className="adminWidget wide">
-          <div className="adminWidgetTitle">
-            <h2>Member Growth</h2>
-            <span>2024</span>
+      {/* Charts section */}
+      <section className="dashChartsRow">
+        {/* Membership Overview Chart */}
+        <article className="chartWidget">
+          <div className="chartWidgetHeader">
+            <h2>Membership Overview</h2>
+            <select className="chartSelect" defaultValue="month">
+              <option value="month">This Month</option>
+              <option value="year">This Year</option>
+            </select>
           </div>
-          <div className="adminLineChart">
-            {[26, 38, 56, 66, 48, 52, 61, 44, 59, 53, 64, 78].map((point, index) => (
-              <i key={index} style={{ height: `${point}%` }} />
-            ))}
-          </div>
-        </article>
-        <article className="adminWidget">
-          <div className="adminWidgetTitle">
-            <h2>Membership Expiring Soon</h2>
-            <span>4 due</span>
-          </div>
-          <div className="adminList">
-            {clients.slice(0, 4).map((client, index) => (
-              <div key={client.id}>
-                <span className="adminAvatar">{client.name.charAt(0)}</span>
-                <strong>{client.name}</strong>
-                <em>{3 + index} days left</em>
+          <div className="chartBody">
+            <div className="svgDonutWrap">
+              <svg viewBox="0 0 160 160" width="100%" height="100%">
+                {/* 
+                  Radius = 50, Center = 80, 80
+                  Circumference = 314.16
+                  Basic: 37.4% -> 117.5 stroke-dasharray, offset = 0
+                  Standard: 30.4% -> 95.5 stroke-dasharray, offset = -117.5
+                  Premium: 22.9% -> 71.9 stroke-dasharray, offset = -213.0
+                  Elite: 9.3% -> 29.2 stroke-dasharray, offset = -284.9
+                */}
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#3b82f6" strokeWidth="16" strokeDasharray="117.5 314.16" strokeDashoffset="0" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#10b981" strokeWidth="16" strokeDasharray="95.5 314.16" strokeDashoffset="-117.5" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#f97316" strokeWidth="16" strokeDasharray="71.9 314.16" strokeDashoffset="-213.0" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#a855f7" strokeWidth="16" strokeDasharray="29.2 314.16" strokeDashoffset="-284.9" />
+              </svg>
+              <div className="svgDonutText">
+                <strong>856</strong>
+                <span>Active</span>
               </div>
-            ))}
+            </div>
+            <div className="chartLegend">
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#3b82f6" }} /> Basic
+                </span>
+                <span className="legendVal">320 (37.4%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#10b981" }} /> Standard
+                </span>
+                <span className="legendVal">260 (30.4%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#f97316" }} /> Premium
+                </span>
+                <span className="legendVal">196 (22.9%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#a855f7" }} /> Elite
+                </span>
+                <span className="legendVal">80 (9.3%)</span>
+              </div>
+            </div>
           </div>
         </article>
-        <article className="adminWidget">
-          <div className="adminWidgetTitle">
-            <h2>Recent Payments</h2>
-            <span>Live</span>
+
+        {/* Revenue Overview Chart */}
+        <article className="chartWidget">
+          <div className="chartWidgetHeader">
+            <h2>Revenue Overview</h2>
+            <select className="chartSelect" defaultValue="month">
+              <option value="month">This Month</option>
+              <option value="year">This Year</option>
+            </select>
           </div>
-          <div className="adminTableWrap">
-            <table className="adminTable">
+          <div className="chartBody" style={{ flexDirection: "column", padding: "10px 0" }}>
+            <svg viewBox="0 0 420 140" width="100%" height="110">
+              {/* Gradients */}
+              <defs>
+                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ef4444" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+              {/* Horizontal Grid lines */}
+              <line x1="20" y1="20" x2="400" y2="20" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="20" y1="50" x2="400" y2="50" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="20" y1="80" x2="400" y2="80" stroke="#f1f5f9" strokeWidth="1" />
+              <line x1="20" y1="110" x2="400" y2="110" stroke="#f1f5f9" strokeWidth="1" />
+              
+              {/* Fill Area path */}
+              <path d="M 20 110 C 60 90, 60 70, 100 70 C 140 70, 140 90, 180 90 C 220 90, 220 50, 260 50 C 300 50, 300 30, 340 30 L 340 110 L 20 110 Z" fill="url(#chartGradient)" />
+              {/* Stroke line path */}
+              <path d="M 20 110 C 60 90, 60 70, 100 70 C 140 70, 140 90, 180 90 C 220 90, 220 50, 260 50 C 300 50, 300 30, 340 30" fill="transparent" stroke="#ef4444" strokeWidth="3" />
+              
+              {/* Points */}
+              <circle cx="20" cy="110" r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="100" cy="70" r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="180" cy="90" r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="260" cy="50" r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
+              <circle cx="340" cy="30" r="4.5" fill="#ef4444" stroke="#ffffff" strokeWidth="1.5" />
+              
+              {/* Axis Labels */}
+              <text x="20" y="130" fill="#94a3b8" fontSize="9" fontWeight="700" textAnchor="middle">May 12</text>
+              <text x="100" y="130" fill="#94a3b8" fontSize="9" fontWeight="700" textAnchor="middle">May 19</text>
+              <text x="180" y="130" fill="#94a3b8" fontSize="9" fontWeight="700" textAnchor="middle">May 26</text>
+              <text x="260" y="130" fill="#94a3b8" fontSize="9" fontWeight="700" textAnchor="middle">Jun 02</text>
+              <text x="340" y="130" fill="#94a3b8" fontSize="9" fontWeight="700" textAnchor="middle">Jun 09</text>
+            </svg>
+          </div>
+        </article>
+
+        {/* Top Selling Categories Chart */}
+        <article className="chartWidget">
+          <div className="chartWidgetHeader">
+            <h2>Top Selling Categories</h2>
+            <select className="chartSelect" defaultValue="month">
+              <option value="month">This Month</option>
+              <option value="year">This Year</option>
+            </select>
+          </div>
+          <div className="chartBody">
+            <div className="svgDonutWrap">
+              <svg viewBox="0 0 160 160" width="100%" height="100%">
+                {/* 
+                  Radius = 50, Center = 80, 80
+                  Circumference = 314.16
+                  Whey Protein: 28.8% -> 90.5 stroke-dasharray, offset = 0
+                  Pre Workout: 20.5% -> 64.4 stroke-dasharray, offset = -90.5
+                  Mass Gainers: 17.9% -> 56.2 stroke-dasharray, offset = -154.9
+                  Vitamins: 14.1% -> 44.3 stroke-dasharray, offset = -211.1
+                  Others: 18.6% -> 58.4 stroke-dasharray, offset = -255.4
+                */}
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#ef4444" strokeWidth="16" strokeDasharray="90.5 314.16" strokeDashoffset="0" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#3b82f6" strokeWidth="16" strokeDasharray="64.4 314.16" strokeDashoffset="-90.5" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#10b981" strokeWidth="16" strokeDasharray="56.2 314.16" strokeDashoffset="-154.9" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#f59e0b" strokeWidth="16" strokeDasharray="44.3 314.16" strokeDashoffset="-211.1" />
+                <circle cx="80" cy="80" r="50" fill="transparent" stroke="#a855f7" strokeWidth="16" strokeDasharray="58.4 314.16" strokeDashoffset="-255.4" />
+              </svg>
+              <div className="svgDonutText">
+                <strong>156</strong>
+                <span>Orders</span>
+              </div>
+            </div>
+            <div className="chartLegend">
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#ef4444" }} /> Whey Protein
+                </span>
+                <span className="legendVal">45 (28.8%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#3b82f6" }} /> Pre Workout
+                </span>
+                <span className="legendVal">32 (20.5%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#10b981" }} /> Mass Gainers
+                </span>
+                <span className="legendVal">28 (17.9%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#f59e0b" }} /> Vitamins
+                </span>
+                <span className="legendVal">22 (14.1%)</span>
+              </div>
+              <div className="legendItem">
+                <span className="legendLabel">
+                  <span className="legendColorDot" style={{ background: "#a855f7" }} /> Others
+                </span>
+                <span className="legendVal">29 (18.6%)</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      {/* Grid container with Shop Management + Quick Actions */}
+      <section className="dashBottomGrid">
+        
+        {/* Left Side: Shop Management */}
+        <article className="shopManageWidget">
+          <div className="shopWidgetHeader">
+            <h2>Shop Management</h2>
+            <div className="shopWidgetHeaderActions">
+              <button className="btnRedAccent" type="button" onClick={onOpenAddProduct}>
+                + Add Product
+              </button>
+              <button className="btnLightGray" type="button" onClick={onViewAllProducts}>
+                View All Products
+              </button>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="shopTabsList">
+            <button className={`shopTabBtn${shopFilter === "all" ? " active" : ""}`} type="button" onClick={() => setShopFilter("all")}>All Products</button>
+            <button className={`shopTabBtn${shopFilter === "low" ? " active" : ""}`} type="button" onClick={() => setShopFilter("low")}>Low Stock</button>
+            <button className={`shopTabBtn${shopFilter === "featured" ? " active" : ""}`} type="button" onClick={() => setShopFilter("featured")}>Featured</button>
+            <button className={`shopTabBtn${shopFilter === "top" ? " active" : ""}`} type="button" onClick={() => setShopFilter("top")}>Top Selling</button>
+          </div>
+
+          {/* Product table */}
+          <div className="dashProdTableWrap">
+            <table className="dashProdTable">
               <thead>
                 <tr>
-                  <th>Member</th>
-                  <th>Amount</th>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Stock</th>
+                  <th>Sold</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {payments.slice(0, 4).map((p) => (
-                  <tr key={p.txnId}>
-                    <td>{p.member}</td>
-                    <td>{p.amount}</td>
-                    <td><Badge value={p.status} /></td>
+                {filteredProducts.map((p, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <div className="tableProdCol">
+                        <Image src={p.img} alt={p.name} width={32} height={32} className="tableProdImg" unoptimized />
+                        <span className="tableProdName">{p.name}</span>
+                      </div>
+                    </td>
+                    <td>{p.brand}</td>
+                    <td>{p.category}</td>
+                    <td>{p.price}</td>
+                    <td style={{ color: p.stock < 20 ? "#f97316" : "#10b981", fontWeight: 800 }}>{p.stock}</td>
+                    <td>{p.sold}</td>
+                    <td>
+                      <span className="badgeGreen">{p.status}</span>
+                    </td>
+                    <td>
+                      <div className="tableActionsCol">
+                        <button className="tableActionBtn" type="button" onClick={onViewAllProducts} title="View Details"><FaImages /></button>
+                        <button className="tableActionBtn" type="button" onClick={onViewAllProducts} title="Edit"><FaEdit /></button>
+                        <button className="tableActionBtn" type="button" onClick={onViewAllProducts} title="Delete"><FaTrash /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </article>
-        <article className="adminWidget">
-          <div className="adminWidgetTitle">
-            <h2>Recent Check-ins</h2>
-            <span>Today</span>
-          </div>
-          <div className="adminTableWrap">
-            <table className="adminTable">
-              <thead>
-                <tr>
-                  <th>Member</th>
-                  <th>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendance.slice(0, 4).map((a, index) => (
-                  <tr key={`${a.member}-${index}`}>
-                    <td>{a.member}</td>
-                    <td>{a.time}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+          <div className="footerBtnWrap">
+            <button className="btnLightGray" type="button" onClick={onViewAllOrders} style={{ width: "100%", maxHeight: "36px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              View All Shop Orders
+            </button>
           </div>
         </article>
+
+        {/* Right Side: Quick Actions & Recent Orders */}
+        <div className="dashSidebarCol">
+          
+          {/* Quick Actions */}
+          <article className="sidebarWidget">
+            <h2>Quick Actions</h2>
+            <div className="quickActionsList">
+              <button className="quickActionRow" type="button" onClick={onOpenAddMember}>
+                <span className="quickActionIcon"><FaUsers /></span>
+                <span>Add New Member</span>
+              </button>
+              <button className="quickActionRow" type="button" onClick={onOpenAddProduct}>
+                <span className="quickActionIcon"><FaShoppingCart /></span>
+                <span>Add New Product</span>
+              </button>
+              <button className="quickActionRow" type="button" onClick={onOpenAddMembership}>
+                <span className="quickActionIcon"><FaLayerGroup /></span>
+                <span>Create New Membership</span>
+              </button>
+              <button className="quickActionRow" type="button" onClick={onOpenAddAnnouncement}>
+                <span className="quickActionIcon"><FaEnvelope /></span>
+                <span>Add Announcement</span>
+              </button>
+            </div>
+          </article>
+
+          {/* Recent Orders */}
+          <article className="sidebarWidget">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h2>Recent Orders</h2>
+              <button type="button" onClick={onViewAllOrders} style={{ background: "transparent", border: 0, fontSize: "11px", fontWeight: "bold", color: "#e53e3e", cursor: "pointer" }}>View All</button>
+            </div>
+            <div className="recentOrdersList">
+              <div className="recentOrderRow">
+                <div className="orderMeta">
+                  <span className="orderNum">#ORD1248</span>
+                  <span className="orderAmt">₹4,499</span>
+                </div>
+                <div className="orderCust">
+                  <span className="custName">John Doe</span>
+                  <span className="orderDate">12 Jun, 2025</span>
+                </div>
+                <span className="badgeStatus delivered">Delivered</span>
+              </div>
+              <div className="recentOrderRow">
+                <div className="orderMeta">
+                  <span className="orderNum">#ORD1247</span>
+                  <span className="orderAmt">₹2,299</span>
+                </div>
+                <div className="orderCust">
+                  <span className="custName">Mike Tyson</span>
+                  <span className="orderDate">12 Jun, 2025</span>
+                </div>
+                <span className="badgeStatus shipped">Shipped</span>
+              </div>
+              <div className="recentOrderRow">
+                <div className="orderMeta">
+                  <span className="orderNum">#ORD1246</span>
+                  <span className="orderAmt">₹5,299</span>
+                </div>
+                <div className="orderCust">
+                  <span className="custName">Sarah Wilson</span>
+                  <span className="orderDate">11 Jun, 2025</span>
+                </div>
+                <span className="badgeStatus pending">Pending</span>
+              </div>
+              <div className="recentOrderRow">
+                <div className="orderMeta">
+                  <span className="orderNum">#ORD1245</span>
+                  <span className="orderAmt">₹3,999</span>
+                </div>
+                <div className="orderCust">
+                  <span className="custName">David Brown</span>
+                  <span className="orderDate">11 Jun, 2025</span>
+                </div>
+                <span className="badgeStatus delivered">Delivered</span>
+              </div>
+            </div>
+          </article>
+        </div>
       </section>
     </div>
   );
@@ -1635,11 +2568,32 @@ interface FormFields {
   upcomingClasses?: string | string[];
   highlighted?: boolean;
   // Shop / offer fields
+  brandKey?: string;
+  brandName?: string;
+  flavor?: string;
+  size?: string;
   stock?: string;
+  txnId?: string;
+  member?: string;
+  amount?: string;
+  method?: string;
+  orderId?: string;
+  customer?: string;
+  items?: string;
+  total?: string;
+  payment?: string;
+  plan?: string;
+  product?: string;
+  reviewText?: string;
+  bookingId?: string;
+  service?: string;
+  caption?: string;
   discount?: string;
   code?: string;
   type?: string;
   validTill?: string;
+  logo?: string;
+  banner?: string;
   // Misc
   specialty?: string;
   experienceYears?: string;
@@ -1649,6 +2603,8 @@ interface FormFields {
   text?: string;
   photo?: string;
   url?: string;
+  label?: string;
+  order?: number;
 }
 
 // Modal Form overlay component
@@ -1660,6 +2616,8 @@ function ModalForm({
   settings,
   trainers,
   clients = [],
+  brands = [],
+  shopCategories = [],
   onClose,
   onSubmit,
 }: {
@@ -1669,6 +2627,8 @@ function ModalForm({
   settings: SharedGymContent;
   trainers: Trainer[];
   clients?: DemoClient[];
+  brands?: Brand[];
+  shopCategories?: ShopCategory[];
   onClose: () => void;
   onSubmit: (payload: FormFields) => void;
 }) {
@@ -1720,8 +2680,40 @@ function ModalForm({
     if (section === "offers") {
       return { name: "", type: "Percentage", discount: "15%", code: "", validTill: "", status: "Active" };
     }
+    if (section === "brands") {
+      return {
+        key: "",
+        name: "",
+        logo: "/images/fitness-logo.jpg",
+        banner: "/images/equipment-row.jpg",
+        description: "",
+        status: "Active",
+      };
+    }
+    if (section === "shopCategories") {
+      return {
+        label: "",
+        category: "Protein",
+        image: "/images/kettlebell.jpg",
+        order: shopCategories.length,
+      };
+    }
     if (section === "shop") {
-      return { name: "", category: "Supplements", price: "Rs 1,999", stock: "20", status: "Active" };
+      const defaultBrand = brands.find((brand) => brand.status === "Active") || brands[0];
+      return {
+        name: "",
+        brandKey: defaultBrand?.key || "",
+        brandName: defaultBrand?.name || "",
+        category: "Protein",
+        flavor: "Chocolate",
+        size: "1 kg",
+        price: "Rs 1,999",
+        rating: "4.5",
+        stock: "20",
+        status: "Active",
+        description: "",
+        image: "/images/kettlebell.jpg",
+      };
     }
     if (section === "orders") {
       return { orderId: `#${Math.floor(1000 + Math.random() * 9000)}`, customer: "", items: "", total: "Rs 1,999", payment: "Paid", status: "Processing", date: new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) };
@@ -1752,6 +2744,9 @@ function ModalForm({
     }
     if (section === "gallery") {
       return { image: "", caption: "" };
+    }
+    if (section === "banners") {
+      return { title: "", subtitle: "", link: "", image: "/images/fitness-logo.jpg" };
     }
     return {};
   });
@@ -1789,6 +2784,10 @@ function ModalForm({
           next.trainer = activePlan.trainer;
           next.sessionsTotal = fixedMembershipSessions(activePlan.key, activePlan.name, activePlan.sessionsTotal || 24);
         }
+      }
+      if (name === "brandKey") {
+        const activeBrand = brands.find((brand) => brand.key === value);
+        next.brandName = activeBrand?.name || "";
       }
       return next;
     });
@@ -1864,30 +2863,55 @@ function ModalForm({
       payload.readTime = `${Math.max(1, Math.round((payload.content.join ? payload.content.join(" ").split(/\s+/).length : 200) / 200))} Min Read`;
     }
 
-    if ((section === "gallery" || section === "classes") && payload.image) {
+    if (section === "brands") {
+      if (!payload.key && payload.name) {
+        payload.key = String(payload.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      }
+      payload.status = payload.status || "Active";
+    }
+
+    if (section === "shop") {
+      const activeBrand = brands.find((brand) => brand.key === payload.brandKey);
+      payload.brandName = activeBrand?.name || String(payload.brandName || "");
+      payload.category = payload.category || "Protein";
+      payload.rating = String(payload.rating || "4.5");
+      payload.status = payload.status || "Active";
+    }
+
+    if (section === "shopCategories") {
+      payload.order = Number(payload.order ?? 0);
+    }
+
+    if ((section === "gallery" || section === "classes" || section === "shop" || section === "brands" || section === "shopCategories") && (payload.image || payload.logo || payload.banner)) {
       setIsCompressing(true);
       try {
-        // Upload to Supabase Storage instead of storing base64
-        const formData = new FormData();
-        formData.append("file", payload.image);
-        formData.append("bucket", "gym-images");
-        
-        const uploadResponse = await fetch("/api/upload-image", {
-          method: "POST",
-          body: formData,
-        });
-        
-        if (uploadResponse.ok) {
-          const { url } = await uploadResponse.json();
-          payload.image = url;
-        } else if (section !== "gallery") {
-          // Fallback to compression if upload fails
-          payload.image = await compressImage(payload.image);
+        for (const imageField of ["image", "logo", "banner"] as const) {
+          const imageValue = payload[imageField];
+          if (typeof imageValue !== "string" || !imageValue.startsWith("data:")) continue;
+
+          const formData = new FormData();
+          formData.append("file", imageValue);
+          formData.append("bucket", "gym-images");
+
+          const uploadResponse = await fetch("/api/upload-image", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (uploadResponse.ok) {
+            const { url } = await uploadResponse.json();
+            payload[imageField] = url;
+          } else if (section !== "gallery") {
+            payload[imageField] = await compressImage(imageValue);
+          }
         }
       } catch {
         console.error("Image upload failed, using compressed base64");
-        if (section !== "gallery") {
-          payload.image = await compressImage(payload.image);
+        for (const imageField of ["image", "logo", "banner"] as const) {
+          const imageValue = payload[imageField];
+          if (typeof imageValue === "string" && imageValue.startsWith("data:") && section !== "gallery") {
+            payload[imageField] = await compressImage(imageValue);
+          }
         }
       } finally {
         setIsCompressing(false);
@@ -2301,6 +3325,64 @@ function ModalForm({
               </>
             )}
 
+            {section === "brands" && (
+              <>
+                <div className="adminFormGroup">
+                  <label>Brand Name</label>
+                  <input name="name" value={fields.name || ""} onChange={handleChange} required />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Brand Key</label>
+                  <input name="key" value={fields.key || ""} onChange={handleChange} placeholder="auto-generated from name" />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Description</label>
+                  <textarea name="description" value={fields.description || ""} onChange={handleChange} style={{ minHeight: "90px" }} />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Brand Logo</label>
+                  {fields.logo && (
+                    <Image
+                      src={fields.logo as string}
+                      alt="Brand logo preview"
+                      width={220}
+                      height={120}
+                      unoptimized
+                      style={{ width: "160px", height: "100px", objectFit: "contain", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46", background: "#09090b" }}
+                    />
+                  )}
+                  <label htmlFor="brandLogoUpload" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "rgba(251,191,36,0.08)", border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "8px", cursor: "pointer", color: "#fbbf24", fontSize: "0.875rem", fontWeight: 600 }}>
+                    <FaCamera /> {fields.logo ? "Change Brand Logo" : "Upload Brand Logo"}
+                  </label>
+                  <input id="brandLogoUpload" type="file" name="logo" accept="image/*" onChange={handleChange} style={{ display: "none" }} />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Brand Banner</label>
+                  {fields.banner && (
+                    <Image
+                      src={fields.banner as string}
+                      alt="Brand banner preview"
+                      width={600}
+                      height={160}
+                      unoptimized
+                      style={{ width: "100%", maxHeight: "160px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
+                    />
+                  )}
+                  <label htmlFor="brandBannerUpload" style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 14px", background: "rgba(251,191,36,0.08)", border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "8px", cursor: "pointer", color: "#fbbf24", fontSize: "0.875rem", fontWeight: 600 }}>
+                    <FaImages /> {fields.banner ? "Change Brand Banner" : "Upload Brand Banner"}
+                  </label>
+                  <input id="brandBannerUpload" type="file" name="banner" accept="image/*" onChange={handleChange} style={{ display: "none" }} />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Status</label>
+                  <select name="status" value={fields.status || "Active"} onChange={handleChange}>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </>
+            )}
+
             {section === "shop" && (
               <>
                 <div className="adminFormGroup">
@@ -2308,16 +3390,58 @@ function ModalForm({
                   <input name="name" value={fields.name || ""} onChange={handleChange} required />
                 </div>
                 <div className="adminFormGroup">
+                  <label>Brand</label>
+                  <select name="brandKey" value={fields.brandKey || ""} onChange={handleChange} required>
+                    <option value="">Select brand</option>
+                    {brands.map((brand) => (
+                      <option key={brand.key} value={brand.key}>
+                        {brand.name} {brand.status === "Inactive" ? "(Disabled)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="adminFormGroup">
                   <label>Category</label>
-                  <input name="category" value={fields.category || ""} onChange={handleChange} required />
+                  <select name="category" value={fields.category || "Protein"} onChange={handleChange} required>
+                    {["Protein", "Pre-Workout", "Creatine", "Mass Gainer", "BCAA", "Vitamins"].map((category) => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="adminFormGroup">
+                  <label>Flavor</label>
+                  <select name="flavor" value={fields.flavor || ""} onChange={handleChange} required>
+                    <option value="">Select Flavor</option>
+                    <option value="Chocolate">Chocolate</option>
+                    <option value="Vanilla">Vanilla</option>
+                    <option value="Cookies & Cream">Cookies & Cream</option>
+                    <option value="Strawberry">Strawberry</option>
+                    <option value="Banana">Banana</option>
+                    <option value="Coffee">Coffee</option>
+                    <option value="Salted Caramel">Salted Caramel</option>
+                    <option value="Mango">Mango</option>
+                    <option value="Unflavored">Unflavored</option>
+                  </select>
+                </div>
+                <div className="adminFormGroup">
+                  <label>Weight / Size</label>
+                  <input name="size" value={fields.size || ""} onChange={handleChange} required />
                 </div>
                 <div className="adminFormGroup">
                   <label>Price</label>
                   <input name="price" value={fields.price || ""} onChange={handleChange} required />
                 </div>
                 <div className="adminFormGroup">
+                  <label>Rating</label>
+                  <input name="rating" value={fields.rating || ""} onChange={handleChange} placeholder="4.8" required />
+                </div>
+                <div className="adminFormGroup">
                   <label>Stock Quantity</label>
                   <input name="stock" value={fields.stock || ""} onChange={handleChange} required />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Description</label>
+                  <textarea name="description" value={fields.description || ""} onChange={handleChange} style={{ minHeight: "90px" }} />
                 </div>
                 <div className="adminFormGroup">
                   <label>Product Image</label>
@@ -2357,6 +3481,59 @@ function ModalForm({
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                   </select>
+                </div>
+              </>
+            )}
+
+            {section === "shopCategories" && (
+              <>
+                <div className="adminFormGroup">
+                  <label>Category Label (displayed to customers)</label>
+                  <input name="label" value={fields.label || ""} onChange={handleChange} placeholder="e.g. Plant Proteins" required />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Category (maps to product category)</label>
+                  <select name="category" value={fields.category || "Protein"} onChange={handleChange} required>
+                    {["Protein", "Pre-Workout", "Creatine", "Mass Gainer", "BCAA", "Vitamins"].map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="adminFormGroup">
+                  <label>Display Order (lower = shown first)</label>
+                  <input name="order" type="number" value={fields.order ?? 0} onChange={handleChange} min={0} />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Category Photo</label>
+                  {fields.image && (
+                    <Image
+                      src={fields.image as string}
+                      alt="Category preview"
+                      width={600}
+                      height={160}
+                      unoptimized
+                      style={{ width: "100%", maxHeight: "160px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46" }}
+                    />
+                  )}
+                  <label
+                    htmlFor="shopCatImageUpload"
+                    style={{
+                      display: "flex", alignItems: "center", gap: "8px",
+                      padding: "10px 14px", background: "rgba(251,191,36,0.08)",
+                      border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "8px",
+                      cursor: "pointer", color: "#fbbf24", fontSize: "0.875rem", fontWeight: 600,
+                    }}
+                  >
+                    <FaCamera /> {fields.image ? "Change Category Photo" : "Upload Category Photo"}
+                  </label>
+                  <input
+                    id="shopCatImageUpload"
+                    type="file"
+                    name="image"
+                    accept="image/*"
+                    onChange={handleChange}
+                    style={{ display: "none" }}
+                  />
                 </div>
               </>
             )}
@@ -2762,6 +3939,56 @@ function ModalForm({
                 </div>
               </>
             )}
+
+            {section === "banners" && (
+              <>
+                <div className="adminFormGroup">
+                  <label>Banner Title</label>
+                  <input name="title" value={fields.title || ""} onChange={handleChange} placeholder="e.g. Summer Sale - 50% Off" />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Subtitle (optional)</label>
+                  <input name="subtitle" value={fields.subtitle || ""} onChange={handleChange} placeholder="e.g. Limited time offer on all memberships" />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Link URL (optional)</label>
+                  <input name="link" value={fields.link || ""} onChange={handleChange} placeholder="e.g. /membership" />
+                </div>
+                <div className="adminFormGroup">
+                  <label>Banner Image</label>
+                  {fields.image && (
+                    <Image
+                      src={fields.image as string}
+                      alt="Banner preview"
+                      width={600}
+                      height={220}
+                      unoptimized
+                      style={{ width: "100%", height: "220px", objectFit: "cover", borderRadius: "8px", marginBottom: "8px", border: "1px solid #3f3f46", background: "#09090b" }}
+                    />
+                  )}
+                  <label
+                    htmlFor="bannerImageUpload"
+                    style={{
+                      display: "flex", alignItems: "center", gap: "8px",
+                      padding: "12px 16px", background: "rgba(251,191,36,0.08)",
+                      border: "2px dashed rgba(251,191,36,0.4)", borderRadius: "10px",
+                      cursor: "pointer", color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <FaImages /> {fields.image ? "Change Banner Image" : "Click to Upload Banner Image"}
+                  </label>
+                  <input
+                    id="bannerImageUpload"
+                    type="file"
+                    name="image"
+                    accept="image/*"
+                    onChange={handleChange}
+                    style={{ display: "none" }}
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="adminModalFooter" style={{ padding: "16px 24px", borderTop: "1px solid #27272a", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
             <button type="button" className="adminBtnCancel" onClick={onClose}>
@@ -3041,6 +4268,275 @@ function ContactMessages({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Stock Management Panel ─────────────────────────────────────────────────
+function StockManagement({
+  products,
+  setProducts,
+  onOpenAdd,
+  onOpenEdit,
+}: {
+  products: Product[];
+  setProducts: (val: Product[] | ((prev: Product[]) => Product[])) => void;
+  onOpenAdd: () => void;
+  onOpenEdit: (item: Product) => void;
+}) {
+  const [stockFilter, setStockFilter] = useState<"all" | "low" | "out" | "high">("all");
+  const lowStockThreshold = 20;
+
+  const filteredProducts = products.filter((p) => {
+    if (stockFilter === "low") return p.stock > 0 && p.stock < lowStockThreshold;
+    if (stockFilter === "out") return p.stock === 0;
+    if (stockFilter === "high") return p.stock >= lowStockThreshold;
+    return true;
+  });
+
+  const updateStock = (productName: string, newStock: number) => {
+    setProducts(
+      products.map((p) => (p.name === productName ? { ...p, stock: newStock } : p))
+    );
+  };
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="Stock Management" action="Add Product" onAction={onOpenAdd} />
+
+      <div style={{ padding: "24px" }}>
+        <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            className={stockFilter === "all" ? "adminPrimaryButton" : "adminBtnCancel"}
+            onClick={() => setStockFilter("all")}
+            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+          >
+            All Products
+          </button>
+          <button
+            type="button"
+            className={stockFilter === "low" ? "adminPrimaryButton" : "adminBtnCancel"}
+            onClick={() => setStockFilter("low")}
+            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+          >
+            Low Stock ({products.filter((p) => p.stock > 0 && p.stock < lowStockThreshold).length})
+          </button>
+          <button
+            type="button"
+            className={stockFilter === "out" ? "adminPrimaryButton" : "adminBtnCancel"}
+            onClick={() => setStockFilter("out")}
+            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+          >
+            Out of Stock ({products.filter((p) => p.stock === 0).length})
+          </button>
+          <button
+            type="button"
+            className={stockFilter === "high" ? "adminPrimaryButton" : "adminBtnCancel"}
+            onClick={() => setStockFilter("high")}
+            style={{ padding: "8px 16px", fontSize: "0.85rem" }}
+          >
+            Well Stocked ({products.filter((p) => p.stock >= lowStockThreshold).length})
+          </button>
+        </div>
+
+        {filteredProducts.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "60px 24px",
+              gap: "16px",
+              color: "#71717a",
+            }}
+          >
+            <FaShoppingCart style={{ fontSize: "2.5rem", opacity: 0.3 }} />
+            <p style={{ margin: 0, fontSize: "1rem" }}>No products found for this filter.</p>
+          </div>
+        ) : (
+          <div className="adminTableWrap">
+            <table className="adminTable">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Brand</th>
+                  <th>Category</th>
+                  <th>Price</th>
+                  <th>Current Stock</th>
+                  <th>Stock Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.map((p) => {
+                  const stockStatus =
+                    p.stock === 0
+                      ? "Out of Stock"
+                      : p.stock < lowStockThreshold
+                      ? "Low Stock"
+                      : "In Stock";
+
+                  return (
+                    <tr key={p.name}>
+                      <td>
+                        <strong>{p.name}</strong>
+                      </td>
+                      <td>{p.brandName || "-"}</td>
+                      <td>{p.category}</td>
+                      <td>{formatCurrency(p.price)}</td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <input
+                            type="number"
+                            value={p.stock}
+                            onChange={(e) => updateStock(p.name, parseInt(e.target.value) || 0)}
+                            min="0"
+                            style={{
+                              width: "70px",
+                              padding: "6px 8px",
+                              background: "#09090b",
+                              border: "1px solid #27272a",
+                              color: "#f4f4f5",
+                              borderRadius: "4px",
+                              fontSize: "0.9rem",
+                            }}
+                          />
+                        </div>
+                      </td>
+                      <td>
+                        <Badge value={stockStatus} />
+                      </td>
+                      <td>
+                        <div className="adminTableActionRow">
+                          <button
+                            className="adminActionBtn edit"
+                            onClick={() => onOpenEdit(p)}
+                            aria-label="Edit Product"
+                          >
+                            <FaEdit />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Banner Management Panel ─────────────────────────────────────────────────
+function BannerManagement({
+  settings,
+  setSettings,
+  onOpenAdd,
+  onOpenEdit,
+}: {
+  settings: SharedGymContent;
+  setSettings: (val: SharedGymContent | ((prev: SharedGymContent) => SharedGymContent)) => void;
+  onOpenAdd: () => void;
+  onOpenEdit: (item: Banner) => void;
+}) {
+  const banners = settings.banners || [];
+
+  const handleDeleteBanner = (index: number) => {
+    setSettings({
+      ...settings,
+      banners: banners.filter((_, i) => i !== index),
+    });
+  };
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="Banner Management" action="Add Banner" onAction={onOpenAdd} />
+
+      <div style={{ padding: "24px" }}>
+        {banners.length === 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "60px 24px",
+              gap: "16px",
+              color: "#71717a",
+            }}
+          >
+            <FaImages style={{ fontSize: "2.5rem", opacity: 0.3 }} />
+            <p style={{ margin: 0, fontSize: "1rem" }}>No banners configured yet.</p>
+            <p style={{ margin: 0, fontSize: "0.85rem", opacity: 0.7 }}>
+              Add promotional banners to display on the website.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: "20px", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))" }}>
+            {banners.map((banner, index) => (
+              <div
+                key={index}
+                style={{
+                  background: "#18181b",
+                  border: "1px solid #27272a",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                {banner.image && (
+                  <div style={{ width: "100%", height: "180px", position: "relative" }}>
+                    <Image
+                      src={banner.image}
+                      alt={banner.title || "Banner"}
+                      fill
+                      style={{ objectFit: "cover" }}
+                      unoptimized
+                    />
+                  </div>
+                )}
+                <div style={{ padding: "16px" }}>
+                  <h3 style={{ margin: "0 0 8px 0", fontSize: "1rem", fontWeight: 700, color: "#f4f4f5" }}>
+                    {banner.title || "Untitled Banner"}
+                  </h3>
+                  {banner.subtitle && (
+                    <p style={{ margin: "0 0 12px 0", fontSize: "0.85rem", color: "#a1a1aa" }}>
+                      {banner.subtitle}
+                    </p>
+                  )}
+                  {banner.link && (
+                    <p style={{ margin: "0 0 12px 0", fontSize: "0.8rem", color: "#3b82f6", wordBreak: "break-all" }}>
+                      Link: {banner.link}
+                    </p>
+                  )}
+                  <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                    <button
+                      className="adminActionBtn edit"
+                      onClick={() => onOpenEdit({ ...banner, index })}
+                      aria-label="Edit Banner"
+                      style={{ padding: "8px" }}
+                    >
+                      <FaEdit />
+                    </button>
+                    <button
+                      className="adminActionBtn delete"
+                      onClick={() => handleDeleteBanner(index)}
+                      aria-label="Delete Banner"
+                      style={{ padding: "8px" }}
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

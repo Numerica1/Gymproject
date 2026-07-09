@@ -15,6 +15,11 @@ interface PageProps {
 function ProgramDetailContent({ program }: { program: ClassSchedule }) {
   const displayImage = program.image || "/images/fitness-logo.jpg";
   const benefits = program.benefits ? program.benefits.split(",").map((b: string) => b.trim()).filter(Boolean) : [];
+  const joinProgram = {
+    slug: program.className.toLowerCase().replace(/\s+/g, "-"),
+    title: program.className,
+    duration: program.duration || "60 Mins",
+  };
 
   return (
     <>
@@ -154,7 +159,7 @@ function ProgramDetailContent({ program }: { program: ClassSchedule }) {
                     Ready to transform your lifestyle under the guidance of expert trainers at Fitness Bhaktapur? Register today and choose a plan that fits your schedule!
                   </p>
                   <div className="programSidebarActions">
-                    <JoinProgramButton program={program} />
+                    <JoinProgramButton program={joinProgram} />
                     <Link href="/contact?form=true" className="secondaryButton">
                       Inquire Now
                     </Link>
