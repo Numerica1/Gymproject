@@ -6173,12 +6173,33 @@ h3 {
 
 .shopMainHeader {
   display: grid;
-  grid-template-columns: 240px minmax(280px, 760px) auto;
+  grid-template-columns: auto 240px minmax(280px, 760px) auto;
   align-items: center;
   justify-content: center;
   gap: 36px;
   min-height: 98px;
   padding: 14px var(--page-padding);
+}
+
+.shopBackButton {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #e4ded5;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #5a4639;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  justify-self: start;
+}
+
+.shopBackButton:hover {
+  background: #ff4f5f;
+  border-color: #ff4f5f;
+  color: #ffffff;
 }
 
 .shopLogo {
@@ -7492,7 +7513,8 @@ h3 {
   }
 
   .shopLogo,
-  .shopHeaderActions {
+  .shopHeaderActions,
+  .shopBackButton {
     justify-self: center;
   }
 
@@ -8695,6 +8717,10 @@ h3 {
 
   .shopHeaderActions {
     justify-content: center;
+  }
+
+  .shopBackButton {
+    justify-self: center;
   }
 
   .shopLayout {

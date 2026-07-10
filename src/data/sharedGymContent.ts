@@ -14,6 +14,14 @@ export type SharedMembershipPlan = {
   highlighted?: boolean;
 };
 
+export type Banner = {
+  title?: string;
+  subtitle?: string;
+  link?: string;
+  image?: string;
+  index?: number;
+};
+
 export type SharedGymContent = {
   gymName: string;
   email: string;
@@ -22,6 +30,7 @@ export type SharedGymContent = {
   currency: string;
   logo: string;
   membershipPlans: SharedMembershipPlan[];
+  banners?: Banner[];
 };
 
 export const sharedGymContentKey = "fitness-bhaktapur-shared-content";

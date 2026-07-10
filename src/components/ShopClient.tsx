@@ -181,15 +181,23 @@ export default function ShopClient() {
     rail.addEventListener("mouseleave", onLeave);
     const id = setInterval(() => {
       if (paused || !rail) return;
-      const maxScroll = rail.scrollWidth - rail.clientWidth;
-      if (maxScroll <= 0) return;
+      
+      const N = sortedCategories.length;
+      if (rail.children.length < 3 * N) return;
+      
+      const firstChild = rail.children[0] as HTMLElement;
+      const duplicateFirstChild = rail.children[N] as HTMLElement;
+      if (!firstChild || !duplicateFirstChild) return;
+      
+      const setWidth = duplicateFirstChild.offsetLeft - firstChild.offsetLeft;
+      if (setWidth <= 0) return;
       
       // Smooth continuous scrolling
       rail.scrollLeft += 0.8;
       
-      // Seamless infinite scroll - reset when reaching the first set's end
-      if (rail.scrollLeft >= maxScroll / 2) {
-        rail.scrollLeft = 0;
+      // Seamless infinite scroll - reset by subtracting setWidth when reaching the second set
+      if (rail.scrollLeft >= setWidth) {
+        rail.scrollLeft -= setWidth;
       }
     }, 16);
     return () => {
@@ -217,6 +225,14 @@ export default function ShopClient() {
         </div>
 
         <div className="shopMainHeader">
+          <button
+            type="button"
+            className="shopBackButton"
+            onClick={() => router.back()}
+            aria-label="Go back"
+          >
+            <FaChevronLeft />
+          </button>
           <a className="shopLogo" href="/shop" aria-label="FitnessHealth home">
             <span>FITNESS</span>
             <strong>Health</strong>
@@ -282,6 +298,21 @@ export default function ShopClient() {
           <button
             type="button"
             key={`${cat.label}-${cat.category}-duplicate`}
+            className={categoryFilter === cat.category ? "shopCategoryCard active" : "shopCategoryCard"}
+            onClick={() => handleCategoryClick(cat.category)}
+            aria-label={`Filter by ${cat.label}`}
+          >
+            <span>
+              <Image src={cat.image} alt={cat.label} width={130} height={110} unoptimized />
+            </span>
+            <strong>{cat.label}</strong>
+          </button>
+        ))}
+        {/* Triplicate categories for seamless infinite loop on wide screens */}
+        {sortedCategories.map((cat) => (
+          <button
+            type="button"
+            key={`${cat.label}-${cat.category}-triplicate`}
             className={categoryFilter === cat.category ? "shopCategoryCard active" : "shopCategoryCard"}
             onClick={() => handleCategoryClick(cat.category)}
             aria-label={`Filter by ${cat.label}`}

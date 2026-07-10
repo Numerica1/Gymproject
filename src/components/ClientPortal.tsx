@@ -141,6 +141,28 @@ export default function ClientPortal() {
         </div>
       </header>
 
+      {activePackage.status === "Pending" && (
+        <div style={{
+          background: "rgba(245, 158, 11, 0.08)",
+          border: "1px dashed rgba(245, 158, 11, 0.4)",
+          borderRadius: "12px",
+          padding: "16px 20px",
+          marginBottom: "24px",
+          color: "#fbbf24",
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px"
+        }}>
+          <h3 style={{ margin: 0, fontWeight: "800", display: "flex", alignItems: "center", gap: "8px", fontSize: "1.1rem" }}>
+            ⚠️ Membership Pending Activation
+          </h3>
+          <p style={{ margin: 0, fontSize: "0.9rem", color: "#a1a1aa", lineHeight: "1.5" }}>
+            Your membership payment has been received (or logged). Your package is currently pending activation by the administrator. 
+            Once activated by the gym admin, you can start checking in and book fitness classes.
+          </p>
+        </div>
+      )}
+
       <section className="clientPackageCard">
         <div className="clientPackageHeader">
           <span>
@@ -315,14 +337,22 @@ export default function ClientPortal() {
             <span><FaClock /></span>
             <div>
               <strong>Started {activePackage.startedOn}</strong>
-              <p>Current billing cycle is active and ready for gym check-ins.</p>
+              <p>
+                {activePackage.status === "Pending"
+                  ? "Your billing cycle starts once activated by admin."
+                  : "Current billing cycle is active and ready for gym check-ins."}
+              </p>
             </div>
           </div>
           <div className="clientTimeline">
             <span><FaCalendarCheck /></span>
             <div>
               <strong>Renews {activePackage.renewsOn}</strong>
-              <p>Renew before this date to keep class access uninterrupted.</p>
+              <p>
+                {activePackage.status === "Pending"
+                  ? "Timeline renewal dates will update upon activation."
+                  : "Renew before this date to keep class access uninterrupted."}
+              </p>
             </div>
           </div>
         </article>

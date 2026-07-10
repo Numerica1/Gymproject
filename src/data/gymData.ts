@@ -471,15 +471,38 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
         })
       );
     } else if (key === GYM_PRODUCTS_KEY && Array.isArray(value)) {
-      // Sync products to Supabase
-      await Promise.all(
-        (value as WithId<Product>[]).map((product) => {
-          if (product.id) {
-            return supabaseProducts.update(product.id, product).catch(() => supabaseProducts.create(product));
+      // Sync products to Supabase and patch back returned ids for new products
+      const productsArr = value as WithId<Product>[];
+      const updatedProducts = await Promise.all(
+        productsArr.map(async (product, idx) => {
+          try {
+            const isNew = !product.id || String(product.id).startsWith("temp-");
+            if (!isNew) {
+              await supabaseProducts.update(product.id!, product as Record<string, unknown>).catch(() =>
+                supabaseProducts.create(product as Record<string, unknown>)
+              );
+              return product;
+            } else {
+              // Strip temp id before sending to Supabase
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { id: _tempId, ...productWithoutId } = product;
+              // Create and capture the returned record to get the auto-assigned id
+              const created = await supabaseProducts.create(productWithoutId as Record<string, unknown>) as unknown as WithId<Product> | null;
+              if (created?.id) {
+                productsArr[idx] = { ...product, id: created.id };
+                return productsArr[idx];
+              }
+              return product;
+            }
+          } catch {
+            return product;
           }
-          return supabaseProducts.create(product);
         })
       );
+      // Write the id-enriched array back to localStorage so future saves use update, not create
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(updatedProducts));
+      }
     } else if (key === GYM_BRANDS_KEY && Array.isArray(value)) {
       // Sync brands to Supabase
       await Promise.all(

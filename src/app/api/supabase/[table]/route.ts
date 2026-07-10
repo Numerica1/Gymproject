@@ -86,6 +86,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     
     const data = await supabaseRequest(table, {
       method: "POST",
+      headers: { "Prefer": "return=representation" },
       body: JSON.stringify(Array.isArray(body) ? body : [body]),
     });
     
@@ -109,6 +110,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     
     const data = await supabaseRequest(`${table}?${idColumn}=eq.${encodeURIComponent(id)}`, {
       method: "PATCH",
+      headers: { "Prefer": "return=representation" },
       body: JSON.stringify(body),
     });
     

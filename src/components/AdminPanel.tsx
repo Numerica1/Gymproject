@@ -68,15 +68,8 @@ import {
   serializeScheduleTable,
 } from "../data/gymData";
 
-type Banner = {
-  title?: string;
-  subtitle?: string;
-  link?: string;
-  image?: string;
-  index?: number;
-};
 import type { DemoClient } from "../data/clientPortal";
-import type { SharedMembershipPlan, SharedGymContent } from "../data/sharedGymContent";
+import type { SharedMembershipPlan, SharedGymContent, Banner } from "../data/sharedGymContent";
 import { formatCurrency } from "../data/currency";
 import { programs } from "../data/programs";
 
@@ -246,7 +239,8 @@ export type AdminItem =
   | Booking
   | ClassSchedule
   | ContactMessage
-  | SharedMembershipPlan;
+  | SharedMembershipPlan
+  | Banner;
 
 function isDemoClientItem(item: AdminItem | null): item is DemoClient {
   return !!item && "package" in item && "memberSince" in item;
@@ -948,7 +942,10 @@ export default function AdminPanel() {
                 if (modalType === "edit") {
                   setProducts(products.map((p) => (p.name === currentItem.name ? productPayload : p)));
                 } else {
-                  setProducts([productPayload, ...products]);
+                  // Assign a temporary id so saveGymData uses update (not create) if it fires again
+                  // before Supabase responds with the real UUID
+                  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                  setProducts([{ ...productPayload, id: tempId }, ...products]);
                 }
               } else if (active === "shopCategories") {
                 const catPayload = payload as unknown as ShopCategory;
@@ -1050,7 +1047,7 @@ function Dashboard({
   const [shopFilter, setShopFilter] = useState<"all" | "low" | "featured" | "top">("all");
   const parseMoney = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
   const formatMetricNumber = (value: number) => value.toLocaleString("en-IN");
-  const activeMembers = clients.filter((client) => client.status === "Active").length || clients.length;
+  const activeMembers = clients.filter((client) => client.package.status === "Active").length || clients.length;
   const checkedInToday = attendance.filter((entry) => /checked|present/i.test(entry.status)).length || attendance.length;
 
   // Exact metrics from the screenshot
@@ -2541,6 +2538,8 @@ interface FormFields {
   trainer?: string;
   image?: string;
   memberSince?: string;
+  subtitle?: string;
+  link?: string;
   // Class / program fields
   className?: string;
   time?: string;
@@ -4288,15 +4287,16 @@ function StockManagement({
   const lowStockThreshold = 20;
 
   const filteredProducts = products.filter((p) => {
-    if (stockFilter === "low") return p.stock > 0 && p.stock < lowStockThreshold;
-    if (stockFilter === "out") return p.stock === 0;
-    if (stockFilter === "high") return p.stock >= lowStockThreshold;
+    const stockVal = Number(p.stock) || 0;
+    if (stockFilter === "low") return stockVal > 0 && stockVal < lowStockThreshold;
+    if (stockFilter === "out") return stockVal === 0;
+    if (stockFilter === "high") return stockVal >= lowStockThreshold;
     return true;
   });
 
   const updateStock = (productName: string, newStock: number) => {
     setProducts(
-      products.map((p) => (p.name === productName ? { ...p, stock: newStock } : p))
+      products.map((p) => (p.name === productName ? { ...p, stock: String(newStock) } : p))
     );
   };
 
@@ -4320,7 +4320,7 @@ function StockManagement({
             onClick={() => setStockFilter("low")}
             style={{ padding: "8px 16px", fontSize: "0.85rem" }}
           >
-            Low Stock ({products.filter((p) => p.stock > 0 && p.stock < lowStockThreshold).length})
+            Low Stock ({products.filter((p) => { const s = Number(p.stock) || 0; return s > 0 && s < lowStockThreshold; }).length})
           </button>
           <button
             type="button"
@@ -4328,7 +4328,7 @@ function StockManagement({
             onClick={() => setStockFilter("out")}
             style={{ padding: "8px 16px", fontSize: "0.85rem" }}
           >
-            Out of Stock ({products.filter((p) => p.stock === 0).length})
+            Out of Stock ({products.filter((p) => (Number(p.stock) || 0) === 0).length})
           </button>
           <button
             type="button"
@@ -4336,7 +4336,7 @@ function StockManagement({
             onClick={() => setStockFilter("high")}
             style={{ padding: "8px 16px", fontSize: "0.85rem" }}
           >
-            Well Stocked ({products.filter((p) => p.stock >= lowStockThreshold).length})
+            Well Stocked ({products.filter((p) => (Number(p.stock) || 0) >= lowStockThreshold).length})
           </button>
         </div>
 
@@ -4371,10 +4371,11 @@ function StockManagement({
               </thead>
               <tbody>
                 {filteredProducts.map((p) => {
+                  const stockVal = Number(p.stock) || 0;
                   const stockStatus =
-                    p.stock === 0
+                    stockVal === 0
                       ? "Out of Stock"
-                      : p.stock < lowStockThreshold
+                      : stockVal < lowStockThreshold
                       ? "Low Stock"
                       : "In Stock";
 

@@ -288,7 +288,7 @@ export default function CheckoutClient() {
         ...client,
         package: {
           ...client.package,
-          status: "Active" as const,
+          status: "Pending" as const,
           paymentMethod: paymentMethodName(activeTab),
         },
       };
@@ -626,7 +626,10 @@ export default function CheckoutClient() {
           <>
             <h2>Payment Successful!</h2>
             <p>
-              Thank you, <strong>{client.name}</strong>. Your payment of <strong>{formatCurrency(finalAmount)}</strong> has been received. Your membership is now <strong style={{ color: "#22c55e" }}>Active</strong>.
+              Thank you, <strong>{client.name}</strong>. Your payment of <strong>{formatCurrency(finalAmount)}</strong> has been received. Your membership is now <strong style={{ color: "#f59e0b" }}>Pending Activation</strong>.
+            </p>
+            <p style={{ fontSize: "14px", color: "#4b5563", marginTop: "-8px" }}>
+              Our admin team will review and activate your package shortly.
             </p>
             <div className="successText">
               Redirecting to your dashboard...
