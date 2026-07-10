@@ -20,6 +20,7 @@ import {
   supabaseAttendance,
   supabaseBookings,
   supabaseContactMessages,
+  supabaseShopCategories,
 } from "./supabaseClient";
 
 // Define storage keys
@@ -53,6 +54,60 @@ function normalizeMembershipPlanSessions<T extends { key: string; name: string; 
   return plan;
 }
 
+function getShopCategoryIdentity(category: Partial<ShopCategory>) {
+  return `${category.label || ""}::${category.category || ""}`.trim().toLowerCase();
+}
+
+function stableUuidFromString(value: string) {
+  let hashA = 0x811c9dc5;
+  let hashB = 0x45d9f3b;
+  let hashC = 0x27d4eb2d;
+  let hashD = 0x165667b1;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    hashA = Math.imul(hashA ^ code, 16777619);
+    hashB = Math.imul(hashB ^ code, 1597334677);
+    hashC = Math.imul(hashC ^ code, 2246822519);
+    hashD = Math.imul(hashD ^ code, 3266489917);
+  }
+
+  const hex = [hashA, hashB, hashC, hashD]
+    .map((part) => (part >>> 0).toString(16).padStart(8, "0"))
+    .join("");
+
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${((parseInt(hex.slice(16, 18), 16) & 0x3f) | 0x80).toString(16)}${hex.slice(18, 20)}-${hex.slice(20, 32)}`;
+}
+
+function isPersistedId(id: string | undefined) {
+  return !!id && !id.startsWith("temp-");
+}
+
+function dedupeShopCategories(categories: ShopCategory[]) {
+  const byIdentity = new Map<string, ShopCategory>();
+
+  categories.forEach((category) => {
+    const identity = getShopCategoryIdentity(category);
+    if (!identity || identity === "::") return;
+
+    const existing = byIdentity.get(identity);
+    if (!existing) {
+      byIdentity.set(identity, category);
+      return;
+    }
+
+    byIdentity.set(identity, {
+      ...existing,
+      ...category,
+      id: existing.id || category.id,
+      order: typeof existing.order === "number" ? existing.order : category.order,
+      image: existing.image || category.image,
+    });
+  });
+
+  return Array.from(byIdentity.values());
+}
+
 function getGymDataUrl(key: string) {
   const encodedKey = encodeURIComponent(key);
 
@@ -64,23 +119,59 @@ function getGymDataUrl(key: string) {
 }
 
 function normalizeGymDataValue<T>(key: string, value: T): T {
-  if (key !== GYM_SETTINGS_KEY || !value || typeof value !== "object") {
-    return value;
+  if (!value) return value;
+
+  if (key === GYM_SETTINGS_KEY && typeof value === "object") {
+    const settings = value as Partial<SharedGymContent>;
+    const usedOldCurrency = !settings.currency || /usd|\$/i.test(settings.currency);
+
+    return {
+      ...settings,
+      currency: "Rs",
+      membershipPlans: settings.membershipPlans?.map((plan) =>
+        normalizeMembershipPlanSessions({
+          ...plan,
+          price: usedOldCurrency && plan.price > 0 && plan.price < 100 ? plan.price * 100 : plan.price,
+        })
+      ),
+    } as T;
   }
 
-  const settings = value as Partial<SharedGymContent>;
-  const usedOldCurrency = !settings.currency || /usd|\$/i.test(settings.currency);
+  if (key === GYM_PRODUCTS_KEY && Array.isArray(value)) {
+    return value.map((p) => {
+      if (p && typeof p === "object") {
+        const prod = p as Partial<Product>;
+        if (prod.category && /^proti?en$/i.test(prod.category)) {
+          return { ...prod, category: "Protein" };
+        }
+      }
+      return p;
+    }) as unknown as T;
+  }
 
-  return {
-    ...settings,
-    currency: "Rs",
-    membershipPlans: settings.membershipPlans?.map((plan) =>
-      normalizeMembershipPlanSessions({
-        ...plan,
-        price: usedOldCurrency && plan.price > 0 && plan.price < 100 ? plan.price * 100 : plan.price,
-      })
-    ),
-  } as T;
+  if (key === GYM_SHOP_CATEGORIES_KEY && Array.isArray(value)) {
+    const normalizedCategories = value.map((c) => {
+      if (c && typeof c === "object") {
+        const cat = c as Partial<ShopCategory>;
+        let updated = false;
+        const newCat = { ...cat };
+        if (cat.category && /^proti?en$/i.test(cat.category)) {
+          newCat.category = "Protein";
+          updated = true;
+        }
+        if (cat.label && /^proti?en$/i.test(cat.label)) {
+          newCat.label = "Protein";
+          updated = true;
+        }
+        if (updated) return newCat;
+      }
+      return c;
+    }) as ShopCategory[];
+
+    return dedupeShopCategories(normalizedCategories) as unknown as T;
+  }
+
+  return value;
 }
 
 // Types
@@ -416,6 +507,9 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
     } else if (key === GYM_CONTACT_MESSAGES_KEY) {
       const data = await supabaseContactMessages.get();
       return data as T;
+    } else if (key === GYM_SHOP_CATEGORIES_KEY) {
+      const data = await supabaseShopCategories.get();
+      return data as T;
     }
   } catch (error) {
     console.warn("Supabase load failed, falling back to gym_data:", error);
@@ -583,6 +677,59 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
           return supabaseContactMessages.create(message);
         })
       );
+    } else if (key === GYM_SHOP_CATEGORIES_KEY && Array.isArray(value)) {
+      // Sync shop categories to Supabase without creating duplicate rows for the same label/category.
+      const categoriesArr = dedupeShopCategories(value as WithId<ShopCategory>[]);
+      const existingCategories = await supabaseShopCategories.get().catch(() => []) as WithId<ShopCategory>[];
+      const existingByIdentity = new Map<string, WithId<ShopCategory>>();
+      const duplicateExistingIds: string[] = [];
+
+      existingCategories.forEach((cat) => {
+        const identity = getShopCategoryIdentity(cat);
+        const existing = existingByIdentity.get(identity);
+
+        if (existing?.id && cat.id) {
+          duplicateExistingIds.push(cat.id);
+          return;
+        }
+
+        existingByIdentity.set(identity, cat);
+      });
+
+      const updatedCategories = await Promise.all(
+        categoriesArr.map(async (cat) => {
+          const identity = getShopCategoryIdentity(cat);
+          const existing = existingByIdentity.get(identity);
+          const categoryId = isPersistedId(cat.id) ? cat.id : undefined;
+          const persistedId = categoryId || existing?.id || stableUuidFromString(`shop-category::${identity}`);
+          const categoryPayload = { ...cat, id: persistedId };
+
+          try {
+            const updated = await supabaseShopCategories.update(persistedId, categoryPayload as Record<string, unknown>) as unknown as WithId<ShopCategory> | null;
+            if (updated?.id) {
+              return { ...cat, id: updated.id || persistedId };
+            }
+
+            const created = await supabaseShopCategories.create(categoryPayload as Record<string, unknown>) as unknown as WithId<ShopCategory>;
+            return { ...cat, id: created.id };
+          } catch {
+            if (existing?.id) {
+              const updated = await supabaseShopCategories.update(existing.id, categoryPayload as Record<string, unknown>) as unknown as WithId<ShopCategory>;
+              return { ...cat, id: updated.id || existing.id };
+            }
+
+            const created = await supabaseShopCategories.create(categoryPayload as Record<string, unknown>) as unknown as WithId<ShopCategory>;
+            return { ...cat, id: created.id };
+          }
+        })
+      );
+
+      await Promise.all(duplicateExistingIds.map((id) => supabaseShopCategories.delete(id).catch(() => {})));
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(key, JSON.stringify(updatedCategories));
+      }
+      value = updatedCategories as T;
     }
   } catch (error) {
     console.warn("Supabase sync failed, falling back to gym_data:", error);

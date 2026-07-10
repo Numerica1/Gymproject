@@ -9,6 +9,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaFilter,
+  FaEye,
   FaHeart,
   FaMagnifyingGlass,
   FaMinus,
@@ -71,8 +72,13 @@ export default function ShopClient() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const activeBrands = brands.filter((brand) => brand.status === "Active");
   const activeProducts = products.filter((product) => {
-    const brand = activeBrands.find((item) => item.key === product.brandKey);
-    return product.status === "Active" && (!product.brandKey || !!brand);
+    if (product.status !== "Active") return false;
+    // If no brandKey is set, always show the product
+    if (!product.brandKey) return true;
+    // If a brandKey is set, the brand must exist (active or otherwise) to validate it
+    const brandExists = brands.some((b) => b.key === product.brandKey);
+    // If brand doesn't exist at all, still show the product (brand may not be loaded yet)
+    return !brandExists || activeBrands.some((b) => b.key === product.brandKey);
   });
   const pageSize = 6;
 
@@ -173,7 +179,7 @@ export default function ShopClient() {
   // Auto-scroll the category carousel with infinite rotation
   useEffect(() => {
     const rail = carouselRef.current;
-    if (!rail || sortedCategories.length === 0) return;
+    if (!rail || sortedCategories.length < 5) return;
     let paused = false;
     const onEnter = () => { paused = true; };
     const onLeave = () => { paused = false; };
@@ -228,8 +234,8 @@ export default function ShopClient() {
           <button
             type="button"
             className="shopBackButton"
-            onClick={() => router.back()}
-            aria-label="Go back"
+            onClick={() => router.push("/")}
+            aria-label="Back to gym website"
           >
             <FaChevronLeft />
           </button>
@@ -278,6 +284,9 @@ export default function ShopClient() {
         id="shop-categories"
         aria-label="Shop by category"
         ref={carouselRef}
+        style={{
+          justifyContent: sortedCategories.length < 5 ? "center" : "start"
+        }}
       >
         {sortedCategories.map((cat) => (
           <button
@@ -294,7 +303,7 @@ export default function ShopClient() {
           </button>
         ))}
         {/* Duplicate categories for seamless infinite loop */}
-        {sortedCategories.map((cat) => (
+        {sortedCategories.length >= 5 && sortedCategories.map((cat) => (
           <button
             type="button"
             key={`${cat.label}-${cat.category}-duplicate`}
@@ -309,7 +318,7 @@ export default function ShopClient() {
           </button>
         ))}
         {/* Triplicate categories for seamless infinite loop on wide screens */}
-        {sortedCategories.map((cat) => (
+        {sortedCategories.length >= 5 && sortedCategories.map((cat) => (
           <button
             type="button"
             key={`${cat.label}-${cat.category}-triplicate`}
@@ -355,56 +364,19 @@ export default function ShopClient() {
       </section>
 
       <div className="shopLayout">
-        <aside className="shopBrandSection" id="shop-brands" aria-label="Shop brands">
-          <div className="shopPanelHeader">
-            <span>Brands</span>
-            <strong>{activeBrands.length}</strong>
-          </div>
-          <div className="shopBrandGrid">
-            <button
-              type="button"
-              className={selectedBrand === "all" ? "shopBrandCard active" : "shopBrandCard"}
-              onClick={() => setSelectedBrand("all")}
-            >
-              <span className="shopBrandLogo">All</span>
-              <strong>All Brands</strong>
-              <small>{activeProducts.length} products</small>
-            </button>
-            {activeBrands.map((brand) => {
-              const count = activeProducts.filter((product) => product.brandKey === brand.key).length;
-              return (
-                <button
-                  type="button"
-                  key={brand.key}
-                  className={selectedBrand === brand.key ? "shopBrandCard active" : "shopBrandCard"}
-                  onClick={() => setSelectedBrand(brand.key)}
-                >
-                  {brand.logo ? (
-                    <Image src={brand.logo} alt={brand.name} width={54} height={54} unoptimized />
-                  ) : (
-                    <span className="shopBrandLogo">{brand.name.slice(0, 2)}</span>
-                  )}
-                  <strong>{brand.name}</strong>
-                  <small>{count} products</small>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
         <div className="shopGridWrapper" ref={productsRef}>
           <div className="shopGridToolbar">
             <span className="shopGridCount">{filteredProducts.length} product{filteredProducts.length !== 1 ? "s" : ""}</span>
             <div className="shopFilterTriggerWrap">
               <button
                 type="button"
-                className={`shopFilterTrigger${filterOpen ? " active" : ""}${(priceFilter !== "all" || flavorFilter !== "all") ? " hasActive" : ""}`}
+                className={`shopFilterTrigger${filterOpen ? " active" : ""}${(selectedBrand !== "all" || priceFilter !== "all" || flavorFilter !== "all") ? " hasActive" : ""}`}
                 onClick={() => setFilterOpen((v) => !v)}
                 aria-label="Toggle filters"
                 aria-expanded={filterOpen}
               >
                 <FaFilter />
-                {(priceFilter !== "all" || flavorFilter !== "all") && (
+                {(selectedBrand !== "all" || priceFilter !== "all" || flavorFilter !== "all") && (
                   <span className="shopFilterBadge" />
                 )}
               </button>
@@ -412,8 +384,22 @@ export default function ShopClient() {
                 <div className="shopFilterDropdown" role="dialog" aria-label="Product filters">
                   <div className="shopFilterDropdownHeader">
                     <span>Filters</span>
-                    <button type="button" onClick={() => { setPriceFilter("all"); setFlavorFilter("all"); }} className="shopFilterClear">Clear all</button>
+                    <button type="button" onClick={() => { setSelectedBrand("all"); setPriceFilter("all"); setFlavorFilter("all"); }} className="shopFilterClear">Clear all</button>
                   </div>
+                  <label className="shopFilterLabel">
+                    <span>Brand</span>
+                    <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)}>
+                      <option value="all">All brands ({activeProducts.length})</option>
+                      {activeBrands.map((brand) => {
+                        const count = activeProducts.filter((product) => product.brandKey === brand.key).length;
+                        return (
+                          <option key={brand.key} value={brand.key}>
+                            {brand.name} ({count})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
                   <label className="shopFilterLabel">
                     <span>Price Range</span>
                     <select value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)}>
@@ -443,17 +429,32 @@ export default function ShopClient() {
             const quantity = getCartQuantity(product);
             const stock = Number(product.stock) || 0;
             const outOfStock = stock <= 0;
-            const brandName = getBrandName(product);
 
             return (
               <article className="shopProductCard" key={`${product.name}-${index}`}>
-                 <Image src={getProductImage(product, index)} alt={product.name} width={350} height={250} style={{ objectFit: "cover" }} unoptimized />
-                <div>
+                <div className="shopProductHoverActions">
+                  <button
+                    type="button"
+                    onClick={() => setDetailProduct(product)}
+                    aria-label={`View details for ${product.name}`}
+                    title="View details"
+                  >
+                    <FaEye />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Add ${product.name} to wishlist`}
+                    title="Wishlist"
+                  >
+                    <FaHeart />
+                  </button>
+                </div>
+                <Image src={getProductImage(product, index)} alt={product.name} width={350} height={250} style={{ objectFit: "cover" }} unoptimized />
+                <div className="shopProductBody">
                   <span>{product.category}</span>
                   <h2>{product.name}</h2>
                   <p>{product.description || "Ready for pickup at the gym reception desk."}</p>
                   <dl className="shopProductSpecs">
-                    <div><dt>Brand</dt><dd>{brandName}</dd></div>
                     <div><dt>Flavor</dt><dd>{product.flavor || "Original"}</dd></div>
                     <div><dt>Size</dt><dd>{product.size || "Standard"}</dd></div>
                     <div><dt>Rating</dt><dd><FaStar /> {product.rating || "4.5"}</dd></div>
@@ -490,13 +491,6 @@ export default function ShopClient() {
                         disabled={outOfStock}
                       >
                         <FaCartShopping /> {outOfStock ? "Out of Stock" : "Add to Cart"}
-                      </button>
-                      <button
-                        type="button"
-                        className="shopBuyButton"
-                        onClick={() => setDetailProduct(product)}
-                      >
-                        View Details
                       </button>
                     </div>
                   )}

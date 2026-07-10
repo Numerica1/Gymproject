@@ -616,3 +616,44 @@ returns uuid language sql immutable as $$
     substr(md5(namespace || ':' || coalesce(value, '')), 21, 12)
   )::uuid;
 $$;
+
+-- =============================================================
+-- 17. SHOP_CATEGORIES
+-- =============================================================
+create table if not exists public.shop_categories (
+  id             uuid        primary key default gen_random_uuid(),
+  label          text        not null,
+  category       text        not null,
+  image_url      text,
+  display_order  integer     not null default 0,
+  source_payload jsonb       not null default '{}'::jsonb,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+create index if not exists idx_shop_categories_order on public.shop_categories (display_order asc);
+create unique index if not exists ux_shop_categories_label_category
+  on public.shop_categories (lower(label), lower(category));
+
+drop trigger if exists shop_categories_set_updated_at on public.shop_categories;
+create trigger shop_categories_set_updated_at
+  before update on public.shop_categories
+  for each row execute function public.set_updated_at();
+
+alter table public.shop_categories enable row level security;
+
+drop policy if exists "Anyone can view shop categories" on public.shop_categories;
+create policy "Anyone can view shop categories"
+  on public.shop_categories for select using (true);
+
+drop policy if exists "Anyone can insert shop categories" on public.shop_categories;
+create policy "Anyone can insert shop categories"
+  on public.shop_categories for insert with check (true);
+
+drop policy if exists "Anyone can update shop categories" on public.shop_categories;
+create policy "Anyone can update shop categories"
+  on public.shop_categories for update using (true) with check (true);
+
+drop policy if exists "Anyone can delete shop categories" on public.shop_categories;
+create policy "Anyone can delete shop categories"
+  on public.shop_categories for delete using (true);

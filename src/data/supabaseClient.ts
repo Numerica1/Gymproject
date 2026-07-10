@@ -192,6 +192,17 @@ interface SupabaseContactMessage {
   created_at: string;
 }
 
+interface SupabaseShopCategory {
+  id: string;
+  label: string;
+  category: string;
+  image_url?: string;
+  display_order?: number;
+  source_payload?: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
 type SourcePayload = Record<string, unknown>;
 type SupabaseInsert<T> = Partial<T>;
 
@@ -328,6 +339,14 @@ type GymContactMessagePayload = SourcePayload & Partial<{
   phone: string;
   subject: string;
   message: string;
+}>;
+
+type GymShopCategoryPayload = SourcePayload & Partial<{
+  id: string;
+  label: string;
+  category: string;
+  image: string;
+  order: number;
 }>;
 
 // Generic Supabase API functions
@@ -812,4 +831,34 @@ export const supabaseContactMessages = {
   get: () => supabaseGet<SupabaseContactMessage>("contact_messages").then(data => data.map(fromSupabaseContactMessage)),
   create: (message: Record<string, unknown>) => supabasePost("contact_messages", toSupabaseContactMessage(message)),
   delete: (id: string) => supabaseDelete("contact_messages", id),
+};
+
+function toSupabaseShopCategory(cat: GymShopCategoryPayload): SupabaseInsert<SupabaseShopCategory> {
+  return {
+    id: cat.id,
+    label: cat.label || "",
+    category: cat.category || "Protein",
+    image_url: cat.image,
+    display_order: typeof cat.order === "number" ? cat.order : 0,
+    source_payload: cat,
+  };
+}
+
+function fromSupabaseShopCategory(row: SupabaseShopCategory): SourcePayload {
+  const source = isSourcePayload(row.source_payload) ? row.source_payload : {};
+  return {
+    ...source,
+    id: row.id,
+    label: row.label,
+    category: row.category,
+    image: row.image_url ?? source.image,
+    order: row.display_order ?? source.order ?? 0,
+  };
+}
+
+export const supabaseShopCategories = {
+  get: () => supabaseGet<SupabaseShopCategory>("shop_categories").then(data => data.map(fromSupabaseShopCategory)),
+  create: (cat: Record<string, unknown>) => supabasePost("shop_categories", toSupabaseShopCategory(cat)),
+  update: (id: string, cat: Record<string, unknown>) => supabaseUpdate("shop_categories", id, toSupabaseShopCategory(cat)),
+  delete: (id: string) => supabaseDelete("shop_categories", id),
 };

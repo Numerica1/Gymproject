@@ -6541,7 +6541,7 @@ h3 {
 
 .shopLayout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 20px;
   padding: 0 var(--page-padding);
@@ -6857,6 +6857,7 @@ h3 {
 }
 
 .shopProductCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -6883,7 +6884,47 @@ h3 {
   flex-shrink: 0;
 }
 
-.shopProductCard > div {
+.shopProductHoverActions {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.shopProductCard:hover .shopProductHoverActions,
+.shopProductCard:focus-within .shopProductHoverActions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.shopProductHoverActions button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(32, 24, 18, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ink);
+  box-shadow: 0 8px 18px rgba(32, 24, 18, 0.14);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.shopProductHoverActions button:hover {
+  background: var(--accent);
+  color: var(--white);
+  transform: translateY(-1px);
+}
+
+.shopProductBody {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -7016,7 +7057,7 @@ h3 {
 }
 
 .shopProductActions .shopAddButton {
-  flex: 1.3 1 110px;
+  flex: 1 1 100%;
 }
 
 .shopProductActions .shopBuyButton {
@@ -7649,7 +7690,7 @@ h3 {
     gap: 14px;
   }
 
-  .shopProductCard > div,
+  .shopProductBody,
   .shopCartPanel {
     padding: 14px;
   }

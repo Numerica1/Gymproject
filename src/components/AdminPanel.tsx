@@ -952,7 +952,8 @@ export default function AdminPanel() {
                 if (modalType === "edit") {
                   setShopCategories(shopCategories.map((c) => (c.label === currentItem.label ? catPayload : c)));
                 } else {
-                  setShopCategories([...shopCategories, catPayload]);
+                  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                  setShopCategories([...shopCategories, { ...catPayload, id: tempId }]);
                 }
               } else if (active === "orders") {
                 const orderPayload = payload as unknown as OrderLog;
@@ -1858,8 +1859,8 @@ function Dashboard({
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((p, idx) => (
-                  <tr key={idx}>
+                {filteredProducts.map((p) => (
+                  <tr key={`${p.name}-${p.brand}`}>
                     <td>
                       <div className="tableProdCol">
                         <Image src={p.img} alt={p.name} width={32} height={32} className="tableProdImg" unoptimized />
@@ -3402,7 +3403,7 @@ function ModalForm({
                 <div className="adminFormGroup">
                   <label>Category</label>
                   <select name="category" value={fields.category || "Protein"} onChange={handleChange} required>
-                    {["Protein", "Pre-Workout", "Creatine", "Mass Gainer", "BCAA", "Vitamins"].map((category) => (
+                    {["Protein", "Pre-Workout", "Creatine", "Mass Gainer", "BCAA", "Vitamins", "Fish Oil", "Fat Burners", "Post-Workout", "Meal Replacements", "Energy Drinks", "Protein Bars", "Peanut Butter"].map((category) => (
                       <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
@@ -3493,8 +3494,8 @@ function ModalForm({
                 <div className="adminFormGroup">
                   <label>Category (maps to product category)</label>
                   <select name="category" value={fields.category || "Protein"} onChange={handleChange} required>
-                    {["Protein", "Pre-Workout", "Creatine", "Mass Gainer", "BCAA", "Vitamins"].map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
+                    {["Protein", "Pre-Workout", "Creatine", "Mass Gainer", "BCAA", "Vitamins", "Fish Oil", "Fat Burners", "Post-Workout", "Meal Replacements", "Energy Drinks", "Protein Bars", "Peanut Butter"].map((category) => (
+                      <option key={category} value={category}>{category}</option>
                     ))}
                   </select>
                 </div>
@@ -4380,7 +4381,7 @@ function StockManagement({
                       : "In Stock";
 
                   return (
-                    <tr key={p.name}>
+                    <tr key={p.id ? `${p.id}-${p.name}` : `${p.name}-${p.brandKey || ""}`}>
                       <td>
                         <strong>{p.name}</strong>
                       </td>
