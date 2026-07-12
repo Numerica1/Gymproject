@@ -4597,7 +4597,8 @@ h3 {
   --admin-text: #111827;
   --admin-muted: #6b7280;
   --admin-line: #e6eaf0;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 286px minmax(0, 1fr);
   color: var(--admin-text);
@@ -4728,7 +4729,9 @@ h3 {
 
 .adminWorkspace {
   min-width: 0;
-  padding: 18px 22px 32px;
+  padding: 0 22px 32px;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .adminTopbar {
@@ -4738,9 +4741,9 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: -18px -22px 20px;
-  padding: 14px 22px;
-  background: rgba(245, 247, 251, 0.92);
+  margin: 0 -22px 20px;
+  padding: 10px 22px;
+  background: rgba(245, 247, 251, 0.96);
   border-bottom: 1px solid rgba(230, 234, 240, 0.9);
   backdrop-filter: blur(14px);
 }
@@ -5403,6 +5406,8 @@ h3 {
 @media (max-width: 860px) {
   .adminShell {
     display: block;
+    height: auto;
+    overflow: visible;
   }
 
   .adminSidebar {
@@ -5420,6 +5425,8 @@ h3 {
 
   .adminWorkspace {
     padding: 14px 14px 28px;
+    height: auto;
+    overflow-y: visible;
   }
 
   .adminTopbar {
@@ -6309,6 +6316,204 @@ h3 {
   white-space: nowrap;
 }
 
+.adminStatusToggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adminStatusToggle button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #d4d4d8;
+  background: #18181b;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.adminStatusToggle button.active {
+  border-color: #fbbf24;
+  color: #18181b;
+  background: #fbbf24;
+}
+
+.adminInlineStatusToggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.adminInlineStatusToggle:hover {
+  filter: brightness(0.92);
+}
+
+.featuredProgramsPremium {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(72px, 9vw, 128px) var(--page-padding);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(255, 107, 0, 0.22), transparent 30%),
+    radial-gradient(circle at 100% 100%, rgba(255, 107, 0, 0.12), transparent 34%),
+    #0f0f0f;
+}
+
+.featuredProgramsPremium::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  opacity: 0.22;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 85%);
+}
+
+.featuredProgramsPremium > * {
+  position: relative;
+  z-index: 1;
+}
+
+.featuredProgramsHeader {
+  max-width: 780px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.featuredProgramsEyebrow {
+  margin: 0 0 12px;
+  color: #ff6b00;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+.featuredProgramsTitle {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(42px, 6vw, 78px);
+  line-height: .95;
+  letter-spacing: -.06em;
+  text-transform: uppercase;
+}
+
+.featuredProgramsTitle em {
+  color: #ff6b00;
+  font-style: normal;
+}
+
+.featuredProgramsDescription {
+  max-width: 610px;
+  margin: 20px auto 0;
+  color: rgba(255,255,255,.67);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.featuredProgramsPremium .featuredProgramCarousel {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 54px;
+}
+
+.featuredProgramsPremium .programGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.premiumProgramCard {
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 22px;
+  color: #fff;
+  background: rgba(255,255,255,.07);
+  box-shadow: 0 22px 55px rgba(0,0,0,.28);
+  backdrop-filter: blur(15px);
+  transition: transform .32s ease, border-color .32s ease, box-shadow .32s ease;
+}
+
+.premiumProgramCard:hover {
+  border-color: rgba(255,107,0,.82);
+  box-shadow: 0 20px 48px rgba(255,107,0,.24), 0 28px 62px rgba(0,0,0,.46);
+  transform: translateY(-9px);
+}
+
+.premiumProgramImageWrap {
+  position: relative;
+  height: 224px;
+  overflow: hidden;
+}
+
+.premiumProgramImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .55s cubic-bezier(.2,.7,.2,1);
+}
+
+.premiumProgramCard:hover .premiumProgramImage { transform: scale(1.1); }
+
+.premiumProgramGradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(8,8,8,.72), transparent 58%), linear-gradient(120deg, rgba(255,107,0,.25), transparent 54%);
+}
+
+.premiumProgramBadge,
+.premiumProgramRating {
+  position: absolute;
+  top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  backdrop-filter: blur(8px);
+}
+
+.premiumProgramBadge { left: 14px; background: #ff6b00; color: #fff; }
+.premiumProgramRating { right: 14px; background: rgba(10,10,10,.55); color: #fff; }
+.premiumProgramRating svg { color: #ffb100; }
+
+.premiumProgramBody { padding: 22px; }
+.premiumProgramBody h3 { margin: 0; font-size: 22px; line-height: 1.14; }
+.premiumProgramBody > p { min-height: 66px; margin: 11px 0 16px; color: rgba(255,255,255,.63); font-size: 14px; line-height: 1.55; }
+
+.premiumProgramDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255,255,255,.11);
+  border-bottom: 1px solid rgba(255,255,255,.11);
+}
+
+.premiumProgramDetails span { display: inline-flex; align-items: center; gap: 5px; color: rgba(255,255,255,.72); font-size: 11px; font-weight: 750; }
+.premiumProgramDetails svg { color: #ff6b00; }
+
+.premiumProgramFooter { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 18px; color: rgba(255,255,255,.56); font-size: 11px; }
+.premiumProgramFooter strong { display: block; max-width: 105px; overflow: hidden; color: #fff; text-overflow: ellipsis; white-space: nowrap; }
+
+.premiumProgramCta { display: inline-flex; align-items: center; gap: 8px; padding: 10px 13px; border-radius: 9px; color: #fff; background: #ff6b00; font-size: 12px; font-weight: 900; text-decoration: none; transition: background .2s ease, transform .2s ease, box-shadow .2s ease; }
+.premiumProgramCta:hover { color: #fff; background: #ff7d20; box-shadow: 0 8px 18px rgba(255,107,0,.32); transform: translateX(2px); }
+
+@media (max-width: 1100px) {
+  .featuredProgramsPremium .programGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .featuredProgramsPremium .featuredProgramCarousel { padding: 0 0 58px; }
+  .featuredProgramsPremium .programGrid { grid-template-columns: 1fr; }
+  .premiumProgramImageWrap { height: 245px; }
+}
+
 .shopNavBar {
   display: flex;
   align-items: center;
@@ -6537,6 +6742,149 @@ h3 {
 
 .shopPromoDots span.active {
   background: #000000;
+}
+
+.shopPromoHero.shopBannerCarousel {
+  display: block;
+  min-height: 420px;
+  background: #09090b;
+}
+
+.shopBannerTrack {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.shopBannerSlide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 0.7s ease-in-out;
+  cursor: pointer;
+}
+
+.shopBannerSlide.active {
+  opacity: 1;
+  z-index: 1;
+}
+
+.shopBannerOverlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: end;
+  padding: 60px 40px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72), transparent 60%);
+}
+
+.shopBannerCopy {
+  max-width: 640px;
+  color: #fff;
+}
+
+.shopBannerCopy span {
+  display: inline-block;
+  margin-bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shopBannerCopy h1 {
+  margin: 14px 0 0;
+  color: #fff;
+  font-size: clamp(28px, 3.6vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.shopBannerNav {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  display: grid;
+  width: 48px;
+  height: 64px;
+  place-items: center;
+  border: 0;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  font-size: 28px;
+  transform: translateY(-50%);
+  transition: background 0.2s ease;
+}
+
+.shopBannerNav:hover {
+  background: rgba(0, 0, 0, 0.44);
+}
+
+.shopBannerPrev {
+  left: 18px;
+}
+
+.shopBannerNext {
+  right: 18px;
+}
+
+.shopBannerDots {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  gap: 10px;
+  transform: translateX(-50%);
+}
+
+.shopBannerDots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.shopBannerDots span:hover {
+  transform: scale(1.25);
+}
+
+.shopBannerDots span.active {
+  background: #ffffff;
+  transform: scale(1.15);
+}
+
+@media (max-width: 720px) {
+  .shopBannerOverlay {
+    padding: 36px 22px;
+  }
+
+  .shopBannerNav {
+    width: 40px;
+    height: 52px;
+    font-size: 22px;
+  }
+
+  .shopBannerPrev {
+    left: 8px;
+  }
+
+  .shopBannerNext {
+    right: 8px;
+  }
 }
 
 .shopLayout {
@@ -6924,6 +7272,11 @@ h3 {
   transform: translateY(-1px);
 }
 
+.shopProductHoverActions button.active {
+  background: var(--accent);
+  color: var(--white);
+}
+
 .shopProductBody {
   display: flex;
   flex-direction: column;
@@ -7143,6 +7496,65 @@ h3 {
   place-items: center;
   padding: 24px;
   background: rgba(0, 0, 0, 0.68);
+}
+
+.shopWishlistModal {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(720px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 30px;
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.shopWishlistModal h2 {
+  margin: 0 40px 20px 0;
+}
+
+.shopWishlistItems {
+  display: grid;
+  gap: 12px;
+}
+
+.shopWishlistItem {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.shopWishlistItem img {
+  width: 84px;
+  height: 70px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.shopWishlistItem div {
+  display: grid;
+  gap: 5px;
+}
+
+.shopWishlistItem span,
+.shopWishlistEmpty {
+  color: var(--muted);
+}
+
+.shopWishlistItem button {
+  border: 0;
+  color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.shopWishlistEmpty {
+  margin: 0;
+  line-height: 1.5;
 }
 
 .shopDetailModal {

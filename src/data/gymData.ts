@@ -83,6 +83,10 @@ function isPersistedId(id: string | undefined) {
   return !!id && !id.startsWith("temp-");
 }
 
+function isPersistedProductId(id: string | undefined) {
+  return !!id && !/^(temp|legacy-product|default-product)-/.test(id);
+}
+
 function dedupeShopCategories(categories: ShopCategory[]) {
   const byIdentity = new Map<string, ShopCategory>();
 
@@ -138,12 +142,14 @@ function normalizeGymDataValue<T>(key: string, value: T): T {
   }
 
   if (key === GYM_PRODUCTS_KEY && Array.isArray(value)) {
-    return value.map((p) => {
+    return value.map((p, index) => {
       if (p && typeof p === "object") {
         const prod = p as Partial<Product>;
+        const legacyId = `legacy-product-${stableUuidFromString(`${prod.name || "product"}::${prod.brandKey || ""}::${prod.category || ""}::${prod.flavor || ""}::${prod.size || ""}::${index}`)}`;
         if (prod.category && /^proti?en$/i.test(prod.category)) {
-          return { ...prod, category: "Protein" };
+          return { ...prod, id: prod.id || legacyId, category: "Protein" };
         }
+        return { ...prod, id: prod.id || legacyId };
       }
       return p;
     }) as unknown as T;
@@ -275,6 +281,7 @@ export type ClassSchedule = {
   targetAudience?: string;
   benefits?: string; // comma-separated string
   schedule?: string;
+  tag?: string; // badge tag e.g. "Popular", "New", "Top Rated", "Fat Burn"
 };
 
 export type Booking = {
@@ -343,6 +350,7 @@ const defaultBrands: Brand[] = [
 
 const defaultProducts: Product[] = [
   {
+    id: "default-product-gold-standard-whey",
     name: "Gold Standard Whey Protein",
     brandKey: "optimum-nutrition",
     brandName: "Optimum Nutrition",
@@ -357,6 +365,7 @@ const defaultProducts: Product[] = [
     description: "Fast-mixing whey protein for daily recovery and lean muscle support.",
   },
   {
+    id: "default-product-micronized-creatine",
     name: "Micronized Creatine Powder",
     brandKey: "optimum-nutrition",
     brandName: "Optimum Nutrition",
@@ -371,6 +380,7 @@ const defaultProducts: Product[] = [
     description: "Pure creatine monohydrate for strength, power, and training output.",
   },
   {
+    id: "default-product-biozyme-whey",
     name: "Biozyme Performance Whey",
     brandKey: "muscleblaze",
     brandName: "MuscleBlaze",
@@ -385,6 +395,7 @@ const defaultProducts: Product[] = [
     description: "Digestive enzyme enhanced protein for post-workout recovery.",
   },
   {
+    id: "default-product-mass-gainer-xxl",
     name: "Mass Gainer XXL",
     brandKey: "muscleblaze",
     brandName: "MuscleBlaze",
@@ -399,6 +410,7 @@ const defaultProducts: Product[] = [
     description: "High-calorie mass gainer for bulking phases and hard gainers.",
   },
   {
+    id: "default-product-iso100-hydrolyzed",
     name: "ISO100 Hydrolyzed Protein",
     brandKey: "dymatize",
     brandName: "Dymatize",
@@ -413,6 +425,7 @@ const defaultProducts: Product[] = [
     description: "Hydrolyzed isolate protein with a lean, fast-digesting formula.",
   },
   {
+    id: "default-product-amino-pro-bcaa",
     name: "Amino Pro BCAA",
     brandKey: "dymatize",
     brandName: "Dymatize",
@@ -570,7 +583,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
       const updatedProducts = await Promise.all(
         productsArr.map(async (product, idx) => {
           try {
-            const isNew = !product.id || String(product.id).startsWith("temp-");
+            const isNew = !isPersistedProductId(product.id);
             if (!isNew) {
               await supabaseProducts.update(product.id!, product as Record<string, unknown>).catch(() =>
                 supabaseProducts.create(product as Record<string, unknown>)
@@ -597,6 +610,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
       if (typeof window !== "undefined") {
         window.localStorage.setItem(key, JSON.stringify(updatedProducts));
       }
+      value = updatedProducts as T;
     } else if (key === GYM_BRANDS_KEY && Array.isArray(value)) {
       // Sync brands to Supabase
       await Promise.all(
@@ -836,7 +850,14 @@ export function useGymState<T>(key: string, seed: T): [T, (val: T) => void] {
     clientCache[key] = normalizedValue;
     setStorageItem(key, normalizedValue);
     // Fire API save silently in the background
-    saveGymData(key, normalizedValue).catch(() => {
+    saveGymData(key, normalizedValue)
+      .then((savedValue) => {
+        const resolvedValue = normalizeGymDataValue(key, savedValue);
+        setState(resolvedValue);
+        clientCache[key] = resolvedValue;
+        setStorageItem(key, resolvedValue);
+      })
+      .catch(() => {
       // Backend not available — localStorage is the source of truth
     });
   };

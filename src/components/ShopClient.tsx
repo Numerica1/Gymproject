@@ -23,9 +23,11 @@ import {
   useGymProducts,
   useGymBrands,
   useGymShopCategories,
+  useGymSettings,
   type Product,
 } from "../data/gymData";
 import { formatCurrency } from "../data/currency";
+import type { Banner } from "../data/sharedGymContent";
 
 type CartItem = {
   product: Product;
@@ -50,7 +52,12 @@ function getProductImage(product: Product, index: number) {
   return productImages[index % productImages.length];
 }
 
+function getProductId(product: Product) {
+  return product.id || product.name;
+}
+
 const SHOP_CART_STORAGE_KEY = "fitness-shop-cart";
+const SHOP_WISHLIST_STORAGE_KEY = "fitness-shop-wishlist";
 
 export default function ShopClient() {
   const router = useRouter();
@@ -61,6 +68,7 @@ export default function ShopClient() {
   const carouselRef = useRef<HTMLDivElement>(null);
   const productsRef = useRef<HTMLDivElement>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [wishlist, setWishlist] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState(shopCategories[0]?.category || "Protein");
@@ -70,6 +78,11 @@ export default function ShopClient() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [wishlistOpen, setWishlistOpen] = useState(false);
+  const [settings] = useGymSettings();
+  const adminBanners = (settings.banners || []).filter((banner): banner is Banner & { image: string } => Boolean(banner.image));
+  const [activeSlide, setActiveSlide] = useState(0);
+  const bannerSlideRef = useRef<HTMLDivElement>(null);
   const activeBrands = brands.filter((brand) => brand.status === "Active");
   const activeProducts = products.filter((product) => {
     if (product.status !== "Active") return false;
@@ -87,11 +100,39 @@ export default function ShopClient() {
     if (!storedCart) return;
 
     try {
-      setCart(JSON.parse(storedCart) as CartItem[]);
+      const savedCart = JSON.parse(storedCart) as CartItem[];
+      const normalizedCart = savedCart.map((item) => {
+        const matchingProduct = products.find((product) =>
+          getProductId(product) === getProductId(item.product) || product.name === item.product.name
+        );
+        return matchingProduct ? { ...item, product: matchingProduct } : item;
+      });
+      setCart(normalizedCart);
+      window.localStorage.setItem(SHOP_CART_STORAGE_KEY, JSON.stringify(normalizedCart));
     } catch {
       setCart([]);
     }
-  }, []);
+  }, [products]);
+
+  useEffect(() => {
+    const storedWishlist = window.localStorage.getItem(SHOP_WISHLIST_STORAGE_KEY);
+    if (!storedWishlist) return;
+
+    try {
+      const savedWishlist = JSON.parse(storedWishlist);
+      if (Array.isArray(savedWishlist) && savedWishlist.every((item) => typeof item === "string")) {
+        // Wishlist entries saved before product IDs were introduced used names.
+        const normalizedWishlist = Array.from(new Set(savedWishlist.map((item) => {
+          const matchingProduct = products.find((product) => getProductId(product) === item || product.name === item);
+          return matchingProduct ? getProductId(matchingProduct) : item;
+        })));
+        setWishlist(normalizedWishlist);
+        window.localStorage.setItem(SHOP_WISHLIST_STORAGE_KEY, JSON.stringify(normalizedWishlist));
+      }
+    } catch {
+      setWishlist([]);
+    }
+  }, [products]);
 
   useEffect(() => {
     const brand = searchParams.get("brand");
@@ -105,6 +146,18 @@ export default function ShopClient() {
     window.localStorage.setItem(SHOP_CART_STORAGE_KEY, JSON.stringify(nextCart));
   };
 
+  const toggleWishlist = (product: Product) => {
+    setWishlist((current) => {
+      const productId = getProductId(product);
+      const nextWishlist = current.includes(productId)
+        ? current.filter((id) => id !== productId)
+        : [...current, productId];
+
+      window.localStorage.setItem(SHOP_WISHLIST_STORAGE_KEY, JSON.stringify(nextWishlist));
+      return nextWishlist;
+    });
+  };
+
 
   const getNumericPrice = (product: Product) =>
     Number(String(product.price).replace(/[^\d.]/g, "")) || 0;
@@ -114,17 +167,21 @@ export default function ShopClient() {
     (total, item) => total + getNumericPrice(item.product) * item.quantity,
     0
   );
+  const wishlistProducts = wishlist
+    .map((id) => products.find((product) => getProductId(product) === id))
+    .filter((product): product is Product => Boolean(product));
 
   const updateQuantity = (product: Product, quantity: number) => {
     const maxStock = Number(product.stock) || 0;
     const nextQuantity = Math.max(0, Math.min(quantity, maxStock));
 
     setCart((current) => {
+      const productId = getProductId(product);
       const updatedCart = nextQuantity === 0
-        ? current.filter((item) => item.product.name !== product.name)
-        : current.some((item) => item.product.name === product.name)
+        ? current.filter((item) => getProductId(item.product) !== productId)
+        : current.some((item) => getProductId(item.product) === productId)
         ? current.map((item) =>
-            item.product.name === product.name
+            getProductId(item.product) === productId
               ? { ...item, quantity: nextQuantity }
               : item
           )
@@ -136,7 +193,7 @@ export default function ShopClient() {
   };
 
   const getCartQuantity = (product: Product) =>
-    cart.find((item) => item.product.name === product.name)?.quantity ?? 0;
+    cart.find((item) => getProductId(item.product) === getProductId(product))?.quantity ?? 0;
 
   const getBrandName = (product: Product) =>
     product.brandName || activeBrands.find((brand) => brand.key === product.brandKey)?.name || "Unassigned Brand";
@@ -213,12 +270,32 @@ export default function ShopClient() {
     };
   }, [sortedCategories.length]);
 
+  useEffect(() => {
+    if (adminBanners.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % adminBanners.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [adminBanners.length]);
+
   const handleCategoryClick = (category: string) => {
     setCategoryFilter(category);
     // Scroll to products grid
     setTimeout(() => {
       productsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 60);
+  };
+
+  const goToSlide = (index: number) => {
+    setActiveSlide(index);
+  };
+
+  const goToPrevious = () => {
+    setActiveSlide((prev) => (prev - 1 + adminBanners.length) % adminBanners.length);
+  };
+
+  const goToNext = () => {
+    setActiveSlide((prev) => (prev + 1) % adminBanners.length);
   };
 
 
@@ -259,9 +336,14 @@ export default function ShopClient() {
             <button type="button" aria-label="Account">
               <FaUser />
             </button>
-            <button type="button" aria-label="Wishlist">
+            <button
+              type="button"
+              onClick={() => setWishlistOpen(true)}
+              aria-label={`View wishlist, ${wishlist.length} items`}
+              title="View wishlist"
+            >
               <FaHeart />
-              <span>0</span>
+              <span>{wishlist.length}</span>
             </button>
             <button type="button" onClick={() => router.push("/cart")} aria-label={`View cart, ${cartCount} items`}>
               <FaBagShopping />
@@ -334,33 +416,80 @@ export default function ShopClient() {
         ))}
       </div>
 
-      <section className="shopPromoHero" aria-label="FitnessHealth deal">
-        <button type="button" aria-label="Previous promotion">
-          <FaChevronLeft />
-        </button>
-        <div className="shopPromoCopy">
-          <span>FitnessHealth Foods</span>
-          <h1>Nepali Superfoods Redesign</h1>
-          <p>Where nature meets nutrition</p>
-        </div>
-        <div className="shopPromoProducts">
-          <Image src="/images/kettlebell.jpg" alt="FitnessHealth protein jar" width={210} height={260} unoptimized />
-          <Image src="/images/strength-training.jpg" alt="FitnessHealth supplement bottle" width={210} height={260} unoptimized />
-          <Image src="/images/crossfit-weights.jpg" alt="FitnessHealth recovery blend" width={210} height={260} unoptimized />
-        </div>
-        <div className="shopPromoDeal">
-          <span>Up To</span>
-          <strong>10%<br />Off</strong>
-          <small>FitnessHealth Deal</small>
-        </div>
-        <button type="button" aria-label="Next promotion">
-          <FaChevronRight />
-        </button>
-        <div className="shopPromoDots" aria-hidden="true">
-          {Array.from({ length: 8 }).map((_, index) => (
-            <span key={index} className={index === 6 ? "active" : ""} />
-          ))}
-        </div>
+      <section className={adminBanners.length > 0 ? "shopPromoHero shopBannerCarousel" : "shopPromoHero"} aria-label={adminBanners.length > 0 ? "Shop promotions" : "FitnessHealth deal"}>
+        {adminBanners.length > 0 ? (
+          <div className="shopBannerTrack" ref={bannerSlideRef}>
+            {adminBanners.map((banner, index) => (
+              <div
+                key={index}
+                className={`shopBannerSlide ${index === activeSlide ? "active" : ""}`}
+                style={{ backgroundImage: `url(${banner.image})` }}
+                role={banner.link ? "link" : undefined}
+                tabIndex={banner.link ? 0 : undefined}
+                onClick={() => {
+                  if (banner.link) router.push(banner.link);
+                }}
+                onKeyDown={(e) => {
+                  if (banner.link && (e.key === "Enter" || e.key === " ")) {
+                    e.preventDefault();
+                    router.push(banner.link);
+                  }
+                }}
+              >
+                <div className="shopBannerOverlay">
+                  <div className="shopBannerCopy">
+                    {banner.title && <span>{banner.title}</span>}
+                    {banner.subtitle && <h1>{banner.subtitle}</h1>}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <button type="button" className="shopBannerNav shopBannerPrev" aria-label="Previous banner" onClick={goToPrevious}>
+              <FaChevronLeft />
+            </button>
+            <button type="button" className="shopBannerNav shopBannerNext" aria-label="Next banner" onClick={goToNext}>
+              <FaChevronRight />
+            </button>
+            <div className="shopBannerDots" aria-hidden="true">
+              {adminBanners.map((_, index) => (
+                <span
+                  key={index}
+                  className={index === activeSlide ? "active" : ""}
+                  onClick={() => goToSlide(index)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+            <button type="button" aria-label="Previous promotion">
+              <FaChevronLeft />
+            </button>
+            <div className="shopPromoCopy">
+              <span>FitnessHealth Foods</span>
+              <h1>Nepali Superfoods Redesign</h1>
+              <p>Where nature meets nutrition</p>
+            </div>
+            <div className="shopPromoProducts">
+              <Image src="/images/kettlebell.jpg" alt="FitnessHealth protein jar" width={210} height={260} unoptimized />
+              <Image src="/images/strength-training.jpg" alt="FitnessHealth supplement bottle" width={210} height={260} unoptimized />
+              <Image src="/images/crossfit-weights.jpg" alt="FitnessHealth recovery blend" width={210} height={260} unoptimized />
+            </div>
+            <div className="shopPromoDeal">
+              <span>Up To</span>
+              <strong>10%<br />Off</strong>
+              <small>FitnessHealth Deal</small>
+            </div>
+            <button type="button" aria-label="Next promotion">
+              <FaChevronRight />
+            </button>
+            <div className="shopPromoDots" aria-hidden="true">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <span key={index} className={index === 6 ? "active" : ""} />
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       <div className="shopLayout">
@@ -429,9 +558,10 @@ export default function ShopClient() {
             const quantity = getCartQuantity(product);
             const stock = Number(product.stock) || 0;
             const outOfStock = stock <= 0;
+            const isWishlisted = wishlist.includes(getProductId(product));
 
             return (
-              <article className="shopProductCard" key={`${product.name}-${index}`}>
+              <article className="shopProductCard" key={getProductId(product)}>
                 <div className="shopProductHoverActions">
                   <button
                     type="button"
@@ -443,8 +573,11 @@ export default function ShopClient() {
                   </button>
                   <button
                     type="button"
-                    aria-label={`Add ${product.name} to wishlist`}
-                    title="Wishlist"
+                    className={isWishlisted ? "active" : ""}
+                    onClick={() => toggleWishlist(product)}
+                    aria-label={`${isWishlisted ? "Remove" : "Add"} ${product.name} ${isWishlisted ? "from" : "to"} wishlist`}
+                    aria-pressed={isWishlisted}
+                    title={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
                   >
                     <FaHeart />
                   </button>
@@ -548,6 +681,35 @@ export default function ShopClient() {
                 <FaCartShopping /> Add to Cart
               </button>
             </div>
+          </article>
+        </div>
+      )}
+
+      {wishlistOpen && (
+        <div className="shopDetailOverlay" role="dialog" aria-modal="true" aria-label="Wishlist">
+          <article className="shopWishlistModal">
+            <button type="button" className="shopDetailClose" onClick={() => setWishlistOpen(false)} aria-label="Close wishlist">
+              <FaXmark />
+            </button>
+            <h2>My Wishlist</h2>
+            {wishlistProducts.length > 0 ? (
+              <div className="shopWishlistItems">
+                {wishlistProducts.map((product, index) => (
+                  <article className="shopWishlistItem" key={getProductId(product)}>
+                    <Image src={getProductImage(product, index)} alt={product.name} width={84} height={70} unoptimized />
+                    <div>
+                      <strong>{product.name}</strong>
+                      <span>{formatCurrency(product.price)}</span>
+                    </div>
+                    <button type="button" onClick={() => toggleWishlist(product)} aria-label={`Remove ${product.name} from wishlist`}>
+                      Remove
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <p className="shopWishlistEmpty">Your wishlist is empty. Use the heart on a product to save it here.</p>
+            )}
           </article>
         </div>
       )}

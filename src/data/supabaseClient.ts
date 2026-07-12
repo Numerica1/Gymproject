@@ -55,6 +55,7 @@ interface SupabaseClass {
   target_audience?: string;
   benefits?: unknown[];
   full_schedule?: string;
+  tag?: string;
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
@@ -252,6 +253,7 @@ type GymClassPayload = SourcePayload & Partial<{
   targetAudience: string;
   benefits: string;
   schedule: string;
+  tag: string;
 }>;
 
 type GymProductPayload = SourcePayload & Partial<{
@@ -488,6 +490,7 @@ function toSupabaseClass(classSchedule: GymClassPayload): SupabaseInsert<Supabas
     target_audience: classSchedule.targetAudience,
     benefits: classSchedule.benefits ? classSchedule.benefits.split(",").map((b) => b.trim()).filter(Boolean) : [],
     full_schedule: classSchedule.schedule,
+    tag: classSchedule.tag,
     class_key: classSchedule.className?.toLowerCase().replace(/\s+/g, "-"),
     capacity: parseInt(classSchedule.capacity || "") || 20,
     source_payload: classSchedule,
@@ -507,6 +510,7 @@ function fromSupabaseClass(supabaseClass: SupabaseClass): SourcePayload {
     targetAudience: supabaseClass.target_audience,
     benefits: Array.isArray(supabaseClass.benefits) ? supabaseClass.benefits.join(", ") : "",
     schedule: supabaseClass.full_schedule,
+    tag: supabaseClass.tag,
   };
 }
 

@@ -13,6 +13,10 @@ type CartItem = {
   quantity: number;
 };
 
+function getProductId(product: Product) {
+  return product.id || product.name;
+}
+
 export default function CartPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [pickupAddress, setPickupAddress] = useState("");
@@ -38,11 +42,19 @@ export default function CartPage() {
     if (!storedCart) return;
 
     try {
-      setCart(JSON.parse(storedCart) as CartItem[]);
+      const savedCart = JSON.parse(storedCart) as CartItem[];
+      const normalizedCart = savedCart.map((item) => {
+        const matchingProduct = products.find((product) =>
+          getProductId(product) === getProductId(item.product) || product.name === item.product.name
+        );
+        return matchingProduct ? { ...item, product: matchingProduct } : item;
+      });
+      setCart(normalizedCart);
+      window.localStorage.setItem(SHOP_CART_STORAGE_KEY, JSON.stringify(normalizedCart));
     } catch {
       setCart([]);
     }
-  }, []);
+  }, [products]);
 
   const saveCartToStorage = (nextCart: CartItem[]) => {
     if (typeof window === "undefined") return;
@@ -50,11 +62,12 @@ export default function CartPage() {
   };
 
   const updateQuantity = (product: Product, quantity: number) => {
+    const productId = getProductId(product);
     const nextCart = quantity <= 0
-      ? cart.filter((item) => item.product.name !== product.name)
-      : cart.some((item) => item.product.name === product.name)
+      ? cart.filter((item) => getProductId(item.product) !== productId)
+      : cart.some((item) => getProductId(item.product) === productId)
       ? cart.map((item) =>
-          item.product.name === product.name ? { ...item, quantity } : item
+          getProductId(item.product) === productId ? { ...item, quantity } : item
         )
       : [...cart, { product, quantity }];
 
@@ -168,7 +181,7 @@ export default function CartPage() {
 
     // Deduct stock
     const nextProducts = products.map((product) => {
-      const cartItem = cart.find((item) => item.product.name === product.name);
+      const cartItem = cart.find((item) => getProductId(item.product) === getProductId(product));
       if (!cartItem) return product;
 
       const currentStock = Number(product.stock) || 0;
@@ -239,7 +252,7 @@ export default function CartPage() {
             {cart.length ? (
               <div className="shopCartItems">
                 {cart.map((item, index) => (
-                  <div className="shopCartItem" key={`${item.product.name}-${index}`}>
+                  <div className="shopCartItem" key={getProductId(item.product)}>
                     <div>
                       <strong>{item.product.name}</strong>
                       <span>

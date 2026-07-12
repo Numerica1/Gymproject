@@ -675,6 +675,7 @@ export default function AdminPanel() {
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
             onDelete={(o: Offer) => setOffers(offers.filter((item) => item.code !== o.code))}
+            onToggleStatus={(o: Offer) => setOffers(offers.map((item) => item.code === o.code ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
         {active === "brands" && (
@@ -694,6 +695,7 @@ export default function AdminPanel() {
                   : product
               ));
             }}
+            onToggleStatus={(b: Brand) => setBrands(brands.map((item) => item.key === b.key ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
         {active === "shop" && (
@@ -714,7 +716,8 @@ export default function AdminPanel() {
             actionLabel="Add Product"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(p: Product) => setProducts(products.filter((item) => item.name !== p.name))}
+            onDelete={(p: Product) => setProducts(products.filter((item) => item.id !== p.id))}
+            onToggleStatus={(p: Product) => setProducts(products.map((item) => item.id === p.id ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
         {active === "shopCategories" && (
@@ -756,6 +759,7 @@ export default function AdminPanel() {
             onEdit={handleOpenEdit}
             onDelete={(r: Review) => setReviews(reviews.filter((item) => !(item.customer === r.customer && item.product === r.product && item.date === r.date)))}
             onApprove={(r: Review) => setReviews(reviews.map((item) => item.customer === r.customer && item.product === r.product && item.date === r.date ? { ...item, status: "Approved" } : item))}
+            onToggleStatus={(r: Review) => setReviews(reviews.map((item) => item.customer === r.customer && item.product === r.product && item.date === r.date ? { ...item, status: item.status === "Approved" ? "Pending" : "Approved" } : item))}
           />
         )}
         {active === "attendance" && (
@@ -775,9 +779,10 @@ export default function AdminPanel() {
         {active === "classes" && (
           <OperationsTable
             title="Programs"
-            headers={["Program Name", "Trainer", "Weekly Times", "Full Schedule", "Capacity"]}
+            headers={["Program Name", "Tag", "Trainer", "Weekly Times", "Full Schedule", "Capacity"]}
             rows={filteredClasses.map((c) => [
               c.className,
+              c.tag || "—",
               c.trainer,
               c.time,
               parseScheduleTable(c.schedule)
@@ -940,7 +945,7 @@ export default function AdminPanel() {
               } else if (active === "shop") {
                 const productPayload = payload as unknown as Product;
                 if (modalType === "edit") {
-                  setProducts(products.map((p) => (p.name === currentItem.name ? productPayload : p)));
+                  setProducts(products.map((p) => (p.id === currentItem.id ? { ...productPayload, id: currentItem.id } : p)));
                 } else {
                   // Assign a temporary id so saveGymData uses update (not create) if it fires again
                   // before Supabase responds with the real UUID
@@ -1048,69 +1053,78 @@ function Dashboard({
   const [shopFilter, setShopFilter] = useState<"all" | "low" | "featured" | "top">("all");
   const parseMoney = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
   const formatMetricNumber = (value: number) => value.toLocaleString("en-IN");
-  const activeMembers = clients.filter((client) => client.package.status === "Active").length || clients.length;
-  const checkedInToday = attendance.filter((entry) => /checked|present/i.test(entry.status)).length || attendance.length;
+  const activeMembers = clients.filter((client) => client.package.status === "Active").length;
+  const checkedInToday = attendance.filter((entry) => /checked|present/i.test(entry.status)).length;
+  const totalRevenue = orders.reduce((total, order) => total + parseMoney(order.total), 0) || payments.reduce((total, payment) => total + parseMoney(payment.amount), 0);
 
   // Exact metrics from the screenshot
   const metrics = [
     {
       title: "Total Members",
-      value: formatMetricNumber(clients.length || 1248),
-      trend: "12.5%",
-      sub: "from last month",
+      value: formatMetricNumber(clients.length),
+      trend: "",
+      sub: "Current total",
       icon: <FaUsers style={{ color: "#ef4444" }} />,
       iconBg: "#fee2e2",
     },
     {
       title: "Active Memberships",
-      value: formatMetricNumber(activeMembers || 856),
-      trend: "8.2%",
-      sub: "from last month",
+      value: formatMetricNumber(activeMembers),
+      trend: "",
+      sub: "Currently active",
       icon: <FaDumbbell style={{ color: "#3b82f6" }} />,
       iconBg: "#dbeafe",
     },
     {
       title: "Today's Attendance",
-      value: formatMetricNumber(checkedInToday || 342),
-      trend: "15.3%",
-      sub: "from yesterday",
+      value: formatMetricNumber(checkedInToday),
+      trend: "",
+      sub: "Recorded attendance",
       icon: <FaCalendarCheck style={{ color: "#10b981" }} />,
       iconBg: "#d1fae5",
     },
     {
       title: "Shop Orders",
-      value: formatMetricNumber(orders.length || 156),
-      trend: "18.7%",
-      sub: "from last month",
+      value: formatMetricNumber(orders.length),
+      trend: "",
+      sub: "Recorded orders",
       icon: <FaShoppingCart style={{ color: "#f59e0b" }} />,
       iconBg: "#fef3c7",
     },
     {
       title: "Total Revenue",
       value: "₹2,45,680",
-      trend: "20.4%",
-      sub: "from last month",
+      trend: "",
+      sub: "Recorded revenue",
       icon: <FaWallet style={{ color: "#8b5cf6" }} />,
       iconBg: "#ede9fe",
     },
   ];
 
-  // Screenshot mockup products list
-  const mockProducts = [
-    { name: "Gold Standard Whey", brand: "Optimum Nutrition", category: "Whey Protein", price: "₹4,499", stock: 45, sold: 120, status: "Active", img: "/images/kettlebell.jpg" },
-    { name: "Nitro Tech Ripped", brand: "MuscleTech", category: "Whey Protein", price: "₹4,199", stock: 32, sold: 98, status: "Active", img: "/images/strength-training.jpg" },
-    { name: "C4 Pre Workout", brand: "Cellucor", category: "Pre Workout", price: "₹2,299", stock: 18, sold: 76, status: "Active", img: "/images/equipment-row.jpg" },
-    { name: "Serious Mass Gainer", brand: "Optimum Nutrition", category: "Mass Gainers", price: "₹5,299", stock: 12, sold: 54, status: "Active", img: "/images/crossfit-weights.jpg" },
-    { name: "Multivitamin Tablets", brand: "MuscleBlaze", category: "Vitamins", price: "₹799", stock: 25, sold: 89, status: "Active", img: "/images/fitness-logo.jpg" },
-  ];
+  const totalRevenueMetric = metrics.find((metric) => metric.title === "Total Revenue");
+  if (totalRevenueMetric) {
+    totalRevenueMetric.value = formatCurrency(totalRevenue);
+  }
 
-  // Filter logic for mockup products
-  const filteredProducts = mockProducts.filter((p) => {
+  const dashboardProducts = products.map((product, index) => ({
+    id: product.id || `${product.name}-${index}`,
+    name: product.name,
+    brand: product.brandName || "Unassigned",
+    category: product.category,
+    price: formatCurrency(product.price),
+    stock: Number(product.stock) || 0,
+    sold: 0,
+    status: product.status,
+    img: product.image || "/images/fitness-logo.jpg",
+  }));
+
+  const filteredProducts = dashboardProducts.filter((p) => {
     if (shopFilter === "low") return p.stock < 20;
-    if (shopFilter === "featured") return p.sold > 90;
-    if (shopFilter === "top") return p.sold > 100;
+    if (shopFilter === "featured") return false;
+    if (shopFilter === "top") return false;
     return true;
   });
+  const recentOrders = orders.slice(0, 4);
 
   return (
     <div className="newDashboardContainer">
@@ -1644,7 +1658,7 @@ function Dashboard({
       </section>
 
       {/* Charts section */}
-      <section className="dashChartsRow">
+      {false && <section className="dashChartsRow">
         {/* Membership Overview Chart */}
         <article className="chartWidget">
           <div className="chartWidgetHeader">
@@ -1816,7 +1830,7 @@ function Dashboard({
             </div>
           </div>
         </article>
-      </section>
+      </section>}
 
       {/* Grid container with Shop Management + Quick Actions */}
       <section className="dashBottomGrid">
@@ -1859,7 +1873,7 @@ function Dashboard({
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((p) => (
+                {filteredProducts.length ? filteredProducts.map((p) => (
                   <tr key={`${p.name}-${p.brand}`}>
                     <td>
                       <div className="tableProdCol">
@@ -1883,7 +1897,11 @@ function Dashboard({
                       </div>
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan={8} className="dashboardEmptyState">No products to display.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1928,50 +1946,21 @@ function Dashboard({
               <button type="button" onClick={onViewAllOrders} style={{ background: "transparent", border: 0, fontSize: "11px", fontWeight: "bold", color: "#e53e3e", cursor: "pointer" }}>View All</button>
             </div>
             <div className="recentOrdersList">
-              <div className="recentOrderRow">
-                <div className="orderMeta">
-                  <span className="orderNum">#ORD1248</span>
-                  <span className="orderAmt">₹4,499</span>
+              {recentOrders.length ? recentOrders.map((order) => (
+                <div className="recentOrderRow" key={order.orderId}>
+                  <div className="orderMeta">
+                    <span className="orderNum">{order.orderId}</span>
+                    <span className="orderAmt">{formatCurrency(order.total)}</span>
+                  </div>
+                  <div className="orderCust">
+                    <span className="custName">{order.customer}</span>
+                    <span className="orderDate">{order.date}</span>
+                  </div>
+                  <span className={`badgeStatus ${order.status.toLowerCase()}`}>{order.status}</span>
                 </div>
-                <div className="orderCust">
-                  <span className="custName">John Doe</span>
-                  <span className="orderDate">12 Jun, 2025</span>
-                </div>
-                <span className="badgeStatus delivered">Delivered</span>
-              </div>
-              <div className="recentOrderRow">
-                <div className="orderMeta">
-                  <span className="orderNum">#ORD1247</span>
-                  <span className="orderAmt">₹2,299</span>
-                </div>
-                <div className="orderCust">
-                  <span className="custName">Mike Tyson</span>
-                  <span className="orderDate">12 Jun, 2025</span>
-                </div>
-                <span className="badgeStatus shipped">Shipped</span>
-              </div>
-              <div className="recentOrderRow">
-                <div className="orderMeta">
-                  <span className="orderNum">#ORD1246</span>
-                  <span className="orderAmt">₹5,299</span>
-                </div>
-                <div className="orderCust">
-                  <span className="custName">Sarah Wilson</span>
-                  <span className="orderDate">11 Jun, 2025</span>
-                </div>
-                <span className="badgeStatus pending">Pending</span>
-              </div>
-              <div className="recentOrderRow">
-                <div className="orderMeta">
-                  <span className="orderNum">#ORD1245</span>
-                  <span className="orderAmt">₹3,999</span>
-                </div>
-                <div className="orderCust">
-                  <span className="custName">David Brown</span>
-                  <span className="orderDate">11 Jun, 2025</span>
-                </div>
-                <span className="badgeStatus delivered">Delivered</span>
-              </div>
+              )) : (
+                <p className="dashboardEmptyState">No orders yet.</p>
+              )}
             </div>
           </article>
         </div>
@@ -2406,7 +2395,7 @@ function Settings({
   );
 }
 
-function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, onEdit, onDelete, onApprove }: {
+function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, onEdit, onDelete, onApprove, onToggleStatus }: {
   title: string;
   headers: string[];
   rows: string[][];
@@ -2416,6 +2405,7 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
   onEdit?: (item: T) => void;
   onDelete?: (item: T) => void;
   onApprove?: (item: T) => void;
+  onToggleStatus?: (item: T) => void;
 }) {
   const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
   const showActions = (onEdit || onDelete) && items && items.length > 0;
@@ -2454,7 +2444,11 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
                   {row.map((cell, index) => (
                     <td key={`${stableKey}-${index}`}>
                       {["Active", "Inactive", "Paid", "Pending", "Delivered", "Processing", "Shipped", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
-                        <Badge value={cell} />
+                        onToggleStatus && originalItem ? (
+                          <button type="button" className="adminInlineStatusToggle" onClick={() => onToggleStatus(originalItem)} aria-label={`Change status from ${cell}`}>
+                            <Badge value={cell} />
+                          </button>
+                        ) : <Badge value={cell} />
                       ) : (
                         cell
                       )}
@@ -2793,6 +2787,22 @@ function ModalForm({
     });
   };
 
+  const renderStatusToggle = (name: string, value: string, options: string[]) => (
+    <div className="adminStatusToggle" role="group" aria-label={`${name} status`}>
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className={value === option ? "active" : ""}
+          aria-pressed={value === option}
+          onClick={() => setFields((previous: FormFields) => ({ ...previous, [name]: option }))}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  );
+
   const handleClassNameChange = (value: string) => {
     setFields((prev: FormFields) => {
       const next = { ...prev, className: value };
@@ -3053,11 +3063,7 @@ function ModalForm({
                 {type !== "edit" && (
                   <div className="adminFormGroup">
                     <label>Account Status</label>
-                    <select name="status" value={fields.status || clientItem?.package.status || "Active"} onChange={handleChange}>
-                      <option value="Active">Active</option>
-                      <option value="Pending">Pending</option>
-                      <option value="Expired">Expired</option>
-                    </select>
+                    {renderStatusToggle("status", String(fields.status || clientItem?.package.status || "Active"), ["Active", "Pending", "Expired"])}
                   </div>
                 )}
                 <div className="adminFormGroup">
@@ -3267,12 +3273,9 @@ function ModalForm({
                   <label>Payment Method</label>
                   <input name="method" value={fields.method || ""} onChange={handleChange} required />
                 </div>
-                <div className="adminFormGroup">
-                  <label>Payment Status</label>
-                  <select name="status" value={fields.status || "Paid"} onChange={handleChange}>
-                    <option value="Paid">Paid</option>
-                    <option value="Pending">Pending</option>
-                  </select>
+                  <div className="adminFormGroup">
+                    <label>Payment Status</label>
+                  {renderStatusToggle("status", String(fields.status || "Paid"), ["Paid", "Pending"])}
                 </div>
               </>
             )}
@@ -3317,10 +3320,7 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Status</label>
-                  <select name="status" value={fields.status || "Active"} onChange={handleChange}>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  {renderStatusToggle("status", String(fields.status || "Active"), ["Active", "Inactive"])}
                 </div>
               </>
             )}
@@ -3375,10 +3375,7 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Status</label>
-                  <select name="status" value={fields.status || "Active"} onChange={handleChange}>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  {renderStatusToggle("status", String(fields.status || "Active"), ["Active", "Inactive"])}
                 </div>
               </>
             )}
@@ -3477,10 +3474,7 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Status</label>
-                  <select name="status" value={fields.status || "Active"} onChange={handleChange}>
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
+                  {renderStatusToggle("status", String(fields.status || "Active"), ["Active", "Inactive"])}
                 </div>
               </>
             )}
@@ -3558,18 +3552,11 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Payment Status</label>
-                  <select name="payment" value={fields.payment || "Paid"} onChange={handleChange}>
-                    <option value="Paid">Paid</option>
-                    <option value="Pending">Pending</option>
-                  </select>
+                  {renderStatusToggle("payment", String(fields.payment || "Paid"), ["Paid", "Pending"])}
                 </div>
                 <div className="adminFormGroup">
                   <label>Order Fulfillment Status</label>
-                  <select name="status" value={fields.status || "Processing"} onChange={handleChange}>
-                    <option value="Processing">Processing</option>
-                    <option value="Shipped">Shipped</option>
-                    <option value="Delivered">Delivered</option>
-                  </select>
+                  {renderStatusToggle("status", String(fields.status || "Processing"), ["Processing", "Shipped", "Delivered"])}
                 </div>
               </>
             )}
@@ -3586,11 +3573,7 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Attendance Status</label>
-                  <select name="status" value={fields.status || "Checked In"} onChange={handleChange}>
-                    <option value="Checked In">Checked In</option>
-                    <option value="Checked Out">Checked Out</option>
-                    <option value="Late">Late</option>
-                  </select>
+                  {renderStatusToggle("status", String(fields.status || "Checked In"), ["Checked In", "Checked Out", "Late"])}
                 </div>
               </>
             )}
@@ -3612,6 +3595,24 @@ function ModalForm({
                       <option key={p.slug} value={p.title} />
                     ))}
                   </datalist>
+                </div>
+                <div className="adminFormGroup">
+                  <label>Program Tag</label>
+                  <select
+                    name="tag"
+                    value={(fields.tag as string) || ""}
+                    onChange={handleChange}
+                  >
+                    <option value="">— No Tag —</option>
+                    <option value="Popular">🔥 Popular</option>
+                    <option value="New">✨ New</option>
+                    <option value="Top Rated">⭐ Top Rated</option>
+                    <option value="Fat Burn">💪 Fat Burn</option>
+                    <option value="Strength">🏋️ Strength</option>
+                    <option value="Cardio">🏃 Cardio</option>
+                    <option value="Yoga">🧘 Yoga</option>
+                    <option value="HIIT">⚡ HIIT</option>
+                  </select>
                 </div>
                 <div className="adminFormGroup">
                   <label>Trainer</label>
@@ -3891,10 +3892,7 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Status</label>
-                  <select name="status" value={fields.status || "Approved"} onChange={handleChange}>
-                    <option value="Approved">Approved</option>
-                    <option value="Pending">Pending</option>
-                  </select>
+                  {renderStatusToggle("status", String(fields.status || "Approved"), ["Approved", "Pending"])}
                 </div>
               </>
             )}
@@ -4295,9 +4293,15 @@ function StockManagement({
     return true;
   });
 
-  const updateStock = (productName: string, newStock: number) => {
+  const updateStock = (productId: string | undefined, newStock: number) => {
     setProducts(
-      products.map((p) => (p.name === productName ? { ...p, stock: String(newStock) } : p))
+      products.map((p) => (p.id === productId ? { ...p, stock: String(newStock) } : p))
+    );
+  };
+
+  const toggleProductStatus = (productId: string | undefined) => {
+    setProducts(
+      products.map((p) => p.id === productId ? { ...p, status: p.status === "Active" ? "Inactive" : "Active" } : p)
     );
   };
 
@@ -4367,6 +4371,7 @@ function StockManagement({
                   <th>Price</th>
                   <th>Current Stock</th>
                   <th>Stock Status</th>
+                  <th>Product Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -4393,7 +4398,7 @@ function StockManagement({
                           <input
                             type="number"
                             value={p.stock}
-                            onChange={(e) => updateStock(p.name, parseInt(e.target.value) || 0)}
+                            onChange={(e) => updateStock(p.id, parseInt(e.target.value) || 0)}
                             min="0"
                             style={{
                               width: "70px",
@@ -4409,6 +4414,11 @@ function StockManagement({
                       </td>
                       <td>
                         <Badge value={stockStatus} />
+                      </td>
+                      <td>
+                        <button type="button" className="adminInlineStatusToggle" onClick={() => toggleProductStatus(p.id)} aria-label={`Change ${p.name} status from ${p.status}`}>
+                          <Badge value={p.status} />
+                        </button>
                       </td>
                       <td>
                         <div className="adminTableActionRow">
