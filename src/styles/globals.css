@@ -6316,6 +6316,106 @@ h3 {
   white-space: nowrap;
 }
 
+.shopUserBtn {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  width: auto !important;
+  height: auto !important;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 20px !important;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.shopUserBtn:hover, .shopUserBtn.active {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.shopUserNavName {
+  font-size: 14px;
+  font-weight: 700;
+  color: #232323;
+}
+
+.shopUserDropdownMenu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 100;
+  width: 240px;
+  padding: 12px;
+  margin-top: 8px;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shopDropdownUserHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 8px;
+  text-align: left;
+}
+
+.shopDropdownUserHeader strong {
+  font-size: 14px !important;
+  font-weight: 700;
+  color: #ffffff !important;
+  white-space: normal !important;
+}
+
+.shopDropdownUserHeader span {
+  font-size: 12px;
+  color: #a1a1aa;
+  word-break: break-all;
+}
+
+.shopUserDropdownMenu a {
+  display: block;
+  padding: 8px;
+  color: #e4e4e7;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+  text-align: left;
+}
+
+.shopUserDropdownMenu a:hover {
+  background: #27272a;
+  color: #ffe500;
+}
+
+.shopDropdownLogout {
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  margin-top: 4px;
+  background: transparent !important;
+  border: 0;
+  color: #f87171 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  border-radius: 4px;
+  display: block !important;
+  height: auto !important;
+  place-items: initial !important;
+  transition: background 0.2s;
+}
+
+.shopDropdownLogout:hover {
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
 .adminStatusToggle {
   display: flex;
   flex-wrap: wrap;
@@ -6748,29 +6848,31 @@ h3 {
   display: block;
   min-height: 420px;
   background: #09090b;
+  position: relative;
 }
 
-.shopBannerTrack {
+.shopBannerViewport {
   position: relative;
   width: 100%;
   min-height: 420px;
   overflow: hidden;
 }
 
+.shopBannerTrack {
+  display: flex;
+  width: 100%;
+  min-height: 420px;
+}
+
 .shopBannerSlide {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  min-height: 420px;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0;
-  transition: opacity 0.7s ease-in-out;
   cursor: pointer;
-}
-
-.shopBannerSlide.active {
-  opacity: 1;
-  z-index: 1;
 }
 
 .shopBannerOverlay {
@@ -9491,3 +9593,4 @@ h3 {
     padding: 12px;
   }
 }
+

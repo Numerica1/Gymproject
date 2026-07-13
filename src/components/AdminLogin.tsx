@@ -8,7 +8,7 @@ type Screen = "login" | "forgot" | "verify" | "reset" | "success";
 
 export default function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [settings] = useGymSettings();
-  const adminEmail = settings?.email || "info@fitnessbhaktapur.com";
+  const adminEmail = settings?.email || "admin@example.com";
 
   const [screen, setScreen] = useState<Screen>("login");
   const [email, setEmail] = useState("");
@@ -31,7 +31,7 @@ export default function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => v
       return;
     }
 
-    const savedPwd = localStorage.getItem("admin_password") || "admin1234";
+    const savedPwd = localStorage.getItem("admin_password") || "admin@123";
     if (password !== savedPwd) {
       setError("Incorrect password.");
       return;
@@ -107,7 +107,7 @@ export default function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => v
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="info@fitnessbhaktapur.com"
+                placeholder="admin@example.com"
               />
             </div>
 
@@ -167,7 +167,7 @@ export default function AdminLogin({ onLoginSuccess }: { onLoginSuccess: () => v
                 required
                 value={recoveryEmail}
                 onChange={(e) => setRecoveryEmail(e.target.value)}
-                placeholder="info@fitnessbhaktapur.com"
+                placeholder="admin@example.com"
               />
             </div>
 

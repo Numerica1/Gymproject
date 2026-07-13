@@ -184,6 +184,7 @@ const navGroups = [
       { id: "shop", label: "Products", icon: <FaShoppingCart /> },
       { id: "brands", label: "Brands", icon: <FaLayerGroup /> },
       { id: "shopCategories", label: "Categories", icon: <FaImages /> },
+      { id: "banners", label: "Banners", icon: <FaImages /> },
       { id: "orders", label: "Orders", icon: <FaClipboardList /> },
       { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
     ]
@@ -191,7 +192,6 @@ const navGroups = [
   {
     title: "CONTENT MANAGEMENT",
     items: [
-      { id: "banners", label: "Banners", icon: <FaImages /> },
       { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
       { id: "gallery", label: "Gallery", icon: <FaImages /> },
       { id: "settings", label: "Settings", icon: <FaCog /> },
@@ -331,6 +331,21 @@ export default function AdminPanel() {
     setModalType("edit");
     setActiveItem(item);
   };
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const sec = searchParams.get("section") || searchParams.get("tab");
+    if (sec) {
+      setActive(sec as AdminSection);
+      
+      const action = searchParams.get("action");
+      if (action === "add") {
+        setTimeout(() => {
+          handleOpenAdd();
+        }, 100);
+      }
+    }
+  }, []);
 
   return (
     <main className="adminShell">
@@ -1013,6 +1028,19 @@ export default function AdminPanel() {
                 if (payload.image) {
                   setGallery([...gallery, payload.image]);
                 }
+              } else if (active === "banners") {
+                const bannerPayload = { ...payload } as unknown as Banner;
+                delete bannerPayload.index;
+                let updatedBanners: Banner[] = [];
+                if (modalType === "edit") {
+                  const editIndex = (currentItem as Banner).index;
+                  updatedBanners = (settings.banners || []).map((b, i) =>
+                    i === editIndex ? bannerPayload : b
+                  );
+                } else {
+                  updatedBanners = [...(settings.banners || []), bannerPayload];
+                }
+                setSettings({ ...settings, banners: updatedBanners });
               }
               setModalType(null);
             }}
@@ -2740,7 +2768,7 @@ function ModalForm({
       return { image: "", caption: "" };
     }
     if (section === "banners") {
-      return { title: "", subtitle: "", link: "", image: "/images/fitness-logo.jpg" };
+      return { title: "", subtitle: "", link: "", image: "" };
     }
     return {};
   });
@@ -2817,6 +2845,12 @@ function ModalForm({
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Require an image for new banners
+    if (section === "banners" && type !== "edit" && !fields.image) {
+      alert("Please upload a banner image before saving.");
+      return;
+    }
+
     const payload = { ...fields };
 
     if (section === "memberships") {
@@ -2892,7 +2926,7 @@ function ModalForm({
       payload.order = Number(payload.order ?? 0);
     }
 
-    if ((section === "gallery" || section === "classes" || section === "shop" || section === "brands" || section === "shopCategories") && (payload.image || payload.logo || payload.banner)) {
+    if ((section === "gallery" || section === "classes" || section === "shop" || section === "brands" || section === "shopCategories" || section === "banners") && (payload.image || payload.logo || payload.banner)) {
       setIsCompressing(true);
       try {
         for (const imageField of ["image", "logo", "banner"] as const) {
@@ -3953,7 +3987,10 @@ function ModalForm({
                   <input name="link" value={fields.link || ""} onChange={handleChange} placeholder="e.g. /membership" />
                 </div>
                 <div className="adminFormGroup">
-                  <label>Banner Image</label>
+                  <label>
+                    Banner Image
+                    {type !== "edit" && <span style={{ color: "#ef4444", marginLeft: "4px" }}>*</span>}
+                  </label>
                   {fields.image && (
                     <Image
                       src={fields.image as string}
@@ -3967,14 +4004,22 @@ function ModalForm({
                   <label
                     htmlFor="bannerImageUpload"
                     style={{
-                      display: "flex", alignItems: "center", gap: "8px",
-                      padding: "12px 16px", background: "rgba(251,191,36,0.08)",
-                      border: "2px dashed rgba(251,191,36,0.4)", borderRadius: "10px",
-                      cursor: "pointer", color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700,
-                      justifyContent: "center",
+                      display: "flex", alignItems: "center",
+                      padding: "16px", background: fields.image ? "rgba(251,191,36,0.08)" : "rgba(239,68,68,0.06)",
+                      border: `2px dashed ${fields.image ? "rgba(251,191,36,0.5)" : "rgba(239,68,68,0.45)"}`,
+                      borderRadius: "10px",
+                      cursor: "pointer", color: fields.image ? "#fbbf24" : "#f87171",
+                      fontSize: "0.9rem", fontWeight: 700,
+                      justifyContent: "center", flexDirection: "column", gap: "6px",
                     }}
                   >
-                    <FaImages /> {fields.image ? "Change Banner Image" : "Click to Upload Banner Image"}
+                    <FaImages style={{ fontSize: "1.5rem" }} />
+                    <span>{fields.image ? "Change Banner Image" : "Click to Upload Banner Image"}</span>
+                    {!fields.image && (
+                      <span style={{ fontSize: "0.78rem", fontWeight: 400, opacity: 0.75 }}>
+                        JPG, PNG, or WebP — recommended size 1200×400px
+                      </span>
+                    )}
                   </label>
                   <input
                     id="bannerImageUpload"
@@ -3984,6 +4029,11 @@ function ModalForm({
                     onChange={handleChange}
                     style={{ display: "none" }}
                   />
+                  {!fields.image && type !== "edit" && (
+                    <p style={{ margin: "6px 0 0", fontSize: "0.8rem", color: "#f87171" }}>
+                      An image is required to save the banner.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -3992,8 +4042,8 @@ function ModalForm({
             <button type="button" className="adminBtnCancel" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="adminBtnSubmit" disabled={isCompressing}>
-              {isCompressing ? "Processing..." : (type === "edit" ? "Save Changes" : (section === "gallery" ? "Upload Photo" : "Create Item"))}
+            <button type="submit" className="adminBtnSubmit" disabled={isCompressing || (section === "banners" && type !== "edit" && !fields.image)}>
+              {isCompressing ? "Processing..." : (type === "edit" ? "Save Changes" : (section === "gallery" ? "Upload Photo" : section === "banners" ? "Save Banner" : "Create Item"))}
             </button>
           </div>
         </form>

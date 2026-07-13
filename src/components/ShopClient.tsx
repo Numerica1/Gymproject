@@ -17,6 +17,7 @@ import {
   FaStar,
   FaUser,
   FaXmark,
+  FaSpinner,
 } from "react-icons/fa6";
 import Image from "next/image";
 import {
@@ -24,10 +25,13 @@ import {
   useGymBrands,
   useGymShopCategories,
   useGymSettings,
+  useGymClients,
+  getNextClientId,
   type Product,
 } from "../data/gymData";
 import { formatCurrency } from "../data/currency";
 import type { Banner } from "../data/sharedGymContent";
+import { clientStorageKey, type DemoClient } from "../data/clientPortal";
 
 type CartItem = {
   product: Product;
@@ -71,7 +75,7 @@ export default function ShopClient() {
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [selectedBrand, setSelectedBrand] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState(shopCategories[0]?.category || "Protein");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState("all");
   const [flavorFilter, setFlavorFilter] = useState("all");
   const [stockFilter] = useState("all");
@@ -80,9 +84,177 @@ export default function ShopClient() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const [settings] = useGymSettings();
+  const [clients, setClients] = useGymClients();
+  const [loggedInClient, setLoggedInClient] = useState<DemoClient | null>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authFirstName, setAuthFirstName] = useState("");
+  const [authLastName, setAuthLastName] = useState("");
+  const [authPhone, setAuthPhone] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authSuccess, setAuthSuccess] = useState("");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(clientStorageKey);
+    if (stored) {
+      try {
+        setLoggedInClient(JSON.parse(stored));
+      } catch {
+        setLoggedInClient(null);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    window.localStorage.removeItem(clientStorageKey);
+    window.localStorage.removeItem("staySignedIn");
+    setLoggedInClient(null);
+    setDropdownOpen(false);
+  };
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+
+    const client = clients.find(
+      (c) =>
+        c.email.toLowerCase() === authEmail.trim().toLowerCase() ||
+        (c.username && c.username.toLowerCase() === authEmail.trim().toLowerCase())
+    );
+
+    if (!client) {
+      setAuthError("Account not found. Please check your email.");
+      return;
+    }
+
+    if (!client.password) {
+      setAuthError("Your password is not set yet. Please check your email or contact support.");
+      return;
+    }
+
+    if (client.password !== authPassword) {
+      setAuthError("Incorrect password.");
+      return;
+    }
+
+    window.localStorage.setItem(clientStorageKey, JSON.stringify(client));
+    setLoggedInClient(client);
+    setAuthModalOpen(false);
+    setAuthEmail("");
+    setAuthPassword("");
+  };
+
+  const handleRegisterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+
+    if (!authFirstName.trim() || !authLastName.trim()) {
+      setAuthError("First and last names are required.");
+      return;
+    }
+
+    if (!authEmail.trim()) {
+      setAuthError("Email is required.");
+      return;
+    }
+
+    if (!authPhone.trim()) {
+      setAuthError("Phone number is required.");
+      return;
+    }
+
+    if (!/^[0-9]{10}$/.test(authPhone.trim())) {
+      setAuthError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
+    if (authPassword.length < 6) {
+      setAuthError("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (authPassword !== authConfirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
+
+    const emailExists = clients.some(
+      (c) => c.email.toLowerCase() === authEmail.trim().toLowerCase()
+    );
+
+    if (emailExists) {
+      setAuthError("An account with this email already exists.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    setTimeout(() => {
+      const fullName = `${authFirstName.trim()} ${authLastName.trim()}`;
+      const nextId = getNextClientId(clients);
+
+      const newClient: DemoClient = {
+        id: nextId,
+        name: fullName,
+        email: authEmail.trim(),
+        phone: authPhone.trim(),
+        password: authPassword,
+        memberSince: new Date().toLocaleDateString("en-US", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        package: {
+          key: "none",
+          name: "No Active Plan",
+          price: 0,
+          access: "None",
+          status: "Pending",
+          startedOn: "",
+          renewsOn: "",
+          paymentMethod: "",
+          sessionsUsed: 0,
+          sessionsTotal: 0,
+          features: [],
+          upcomingClasses: [],
+          trainer: "",
+        },
+      };
+
+      const updatedClients = [newClient, ...clients];
+      setClients(updatedClients);
+
+      window.localStorage.setItem(clientStorageKey, JSON.stringify(newClient));
+      setLoggedInClient(newClient);
+      setAuthSuccess("Account created successfully!");
+      setIsSubmitting(false);
+
+      setTimeout(() => {
+        setAuthSuccess("");
+        setAuthModalOpen(false);
+        setAuthFirstName("");
+        setAuthLastName("");
+        setAuthEmail("");
+        setAuthPhone("");
+        setAuthPassword("");
+        setAuthConfirmPassword("");
+      }, 1500);
+    }, 1000);
+  };
+
   const adminBanners = (settings.banners || []).filter((banner): banner is Banner & { image: string } => Boolean(banner.image));
-  const [activeSlide, setActiveSlide] = useState(0);
-  const bannerSlideRef = useRef<HTMLDivElement>(null);
+  // Infinite-loop banner carousel state.
+  // Internal index offset by 1 because the track starts with a clone of the last slide.
+  // Real slides occupy positions [1 … N], clones at [0] and [N+1].
+  const [bannerIndex, setBannerIndex] = useState(1);
+  const [bannerTransition, setBannerTransition] = useState(true);
+  const bannerTrackRef = useRef<HTMLDivElement>(null);
+  const bannerPausedRef = useRef(false);
   const activeBrands = brands.filter((brand) => brand.status === "Active");
   const activeProducts = products.filter((product) => {
     if (product.status !== "Active") return false;
@@ -270,32 +442,67 @@ export default function ShopClient() {
     };
   }, [sortedCategories.length]);
 
+  // After a CSS transition lands on a clone, silently jump to the real slide.
+  const handleBannerTransitionEnd = () => {
+    const n = adminBanners.length;
+    if (n < 2) return;
+    if (bannerIndex === 0) {
+      // Landed on clone-of-last → jump to real last slide (no animation)
+      setBannerTransition(false);
+      setBannerIndex(n);
+    } else if (bannerIndex === n + 1) {
+      // Landed on clone-of-first → jump to real first slide (no animation)
+      setBannerTransition(false);
+      setBannerIndex(1);
+    }
+  };
+
+  // Re-enable transition on the next frame after a silent jump.
   useEffect(() => {
-    if (adminBanners.length <= 1) return;
-    const timer = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % adminBanners.length);
+    if (!bannerTransition) {
+      const id = requestAnimationFrame(() => setBannerTransition(true));
+      return () => cancelAnimationFrame(id);
+    }
+  }, [bannerTransition]);
+
+  // Auto-advance every 4 s, respects hover-pause.
+  useEffect(() => {
+    if (adminBanners.length < 2) return;
+    const id = setInterval(() => {
+      if (!bannerPausedRef.current) {
+        setBannerTransition(true);
+        setBannerIndex((prev) => prev + 1);
+      }
     }, 4000);
-    return () => clearInterval(timer);
+    return () => clearInterval(id);
   }, [adminBanners.length]);
 
+  // Real slide index (0-based) for dot highlighting.
+  const realBannerIndex = adminBanners.length
+    ? ((bannerIndex - 1 + adminBanners.length) % adminBanners.length)
+    : 0;
+
+  const goToSlide = (index: number) => {
+    setBannerTransition(true);
+    setBannerIndex(index + 1);
+  };
+
+  const goToPrevious = () => {
+    setBannerTransition(true);
+    setBannerIndex((prev) => prev - 1);
+  };
+
+  const goToNext = () => {
+    setBannerTransition(true);
+    setBannerIndex((prev) => prev + 1);
+  };
+
   const handleCategoryClick = (category: string) => {
-    setCategoryFilter(category);
+    setCategoryFilter((prev) => (prev === category ? "all" : category));
     // Scroll to products grid
     setTimeout(() => {
       productsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 60);
-  };
-
-  const goToSlide = (index: number) => {
-    setActiveSlide(index);
-  };
-
-  const goToPrevious = () => {
-    setActiveSlide((prev) => (prev - 1 + adminBanners.length) % adminBanners.length);
-  };
-
-  const goToNext = () => {
-    setActiveSlide((prev) => (prev + 1) % adminBanners.length);
   };
 
 
@@ -333,9 +540,47 @@ export default function ShopClient() {
           </label>
 
           <div className="shopHeaderActions">
-            <button type="button" aria-label="Account">
-              <FaUser />
-            </button>
+            {loggedInClient ? (
+              <div
+                className="shopUserDropdownContainer"
+                style={{ position: "relative" }}
+                onMouseLeave={() => setDropdownOpen(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((v) => !v)}
+                  className={`shopUserBtn${dropdownOpen ? " active" : ""}`}
+                  aria-label="Account menu"
+                  title={loggedInClient.name}
+                >
+                  <FaUser />
+                  <span className="shopUserNavName">{loggedInClient.name.split(" ")[0]}</span>
+                </button>
+                {dropdownOpen && (
+                  <div className="shopUserDropdownMenu">
+                    <div className="shopDropdownUserHeader">
+                      <strong>{loggedInClient.name}</strong>
+                      <span>{loggedInClient.email}</span>
+                    </div>
+                    <hr style={{ border: 0, borderTop: "1px solid #27272a", margin: "6px 0" }} />
+                    <Link href="/client" onClick={() => setDropdownOpen(false)}>My Portal</Link>
+                    <Link href="/cart" onClick={() => setDropdownOpen(false)}>My Cart</Link>
+                    <button type="button" className="shopDropdownLogout" onClick={handleLogout}>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setAuthMode("login"); setAuthError(""); setAuthModalOpen(true); }}
+                aria-label="Log in"
+                title="Log in or register"
+              >
+                <FaUser />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setWishlistOpen(true)}
@@ -418,32 +663,87 @@ export default function ShopClient() {
 
       <section className={adminBanners.length > 0 ? "shopPromoHero shopBannerCarousel" : "shopPromoHero"} aria-label={adminBanners.length > 0 ? "Shop promotions" : "FitnessHealth deal"}>
         {adminBanners.length > 0 ? (
-          <div className="shopBannerTrack" ref={bannerSlideRef}>
-            {adminBanners.map((banner, index) => (
-              <div
-                key={index}
-                className={`shopBannerSlide ${index === activeSlide ? "active" : ""}`}
-                style={{ backgroundImage: `url(${banner.image})` }}
-                role={banner.link ? "link" : undefined}
-                tabIndex={banner.link ? 0 : undefined}
-                onClick={() => {
-                  if (banner.link) router.push(banner.link);
-                }}
-                onKeyDown={(e) => {
-                  if (banner.link && (e.key === "Enter" || e.key === " ")) {
-                    e.preventDefault();
-                    router.push(banner.link);
-                  }
-                }}
-              >
-                <div className="shopBannerOverlay">
-                  <div className="shopBannerCopy">
-                    {banner.title && <span>{banner.title}</span>}
-                    {banner.subtitle && <h1>{banner.subtitle}</h1>}
+          <div
+            className="shopBannerViewport"
+            onMouseEnter={() => { bannerPausedRef.current = true; }}
+            onMouseLeave={() => { bannerPausedRef.current = false; }}
+          >
+            {/* Track: [clone-last] [slide-0] … [slide-N-1] [clone-first] */}
+            <div
+              ref={bannerTrackRef}
+              className="shopBannerTrack"
+              style={{
+                transform: `translateX(-${bannerIndex * 100}%)`,
+                transition: bannerTransition ? "transform 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94)" : "none",
+              }}
+              onTransitionEnd={handleBannerTransitionEnd}
+            >
+              {/* Clone of last slide */}
+              {adminBanners.length > 0 && (() => {
+                const banner = adminBanners[adminBanners.length - 1];
+                return (
+                  <div
+                    key="clone-last"
+                    className="shopBannerSlide"
+                    style={{ backgroundImage: `url(${banner.image})` }}
+                    aria-hidden="true"
+                  >
+                    <div className="shopBannerOverlay">
+                      <div className="shopBannerCopy">
+                        {banner.title && <span>{banner.title}</span>}
+                        {banner.subtitle && <h1>{banner.subtitle}</h1>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Real slides */}
+              {adminBanners.map((banner, index) => (
+                <div
+                  key={index}
+                  className="shopBannerSlide"
+                  style={{ backgroundImage: `url(${banner.image})` }}
+                  role={banner.link ? "link" : undefined}
+                  tabIndex={banner.link ? 0 : undefined}
+                  onClick={() => { if (banner.link) router.push(banner.link); }}
+                  onKeyDown={(e) => {
+                    if (banner.link && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      router.push(banner.link);
+                    }
+                  }}
+                >
+                  <div className="shopBannerOverlay">
+                    <div className="shopBannerCopy">
+                      {banner.title && <span>{banner.title}</span>}
+                      {banner.subtitle && <h1>{banner.subtitle}</h1>}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+
+              {/* Clone of first slide */}
+              {adminBanners.length > 0 && (() => {
+                const banner = adminBanners[0];
+                return (
+                  <div
+                    key="clone-first"
+                    className="shopBannerSlide"
+                    style={{ backgroundImage: `url(${banner.image})` }}
+                    aria-hidden="true"
+                  >
+                    <div className="shopBannerOverlay">
+                      <div className="shopBannerCopy">
+                        {banner.title && <span>{banner.title}</span>}
+                        {banner.subtitle && <h1>{banner.subtitle}</h1>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
             <button type="button" className="shopBannerNav shopBannerPrev" aria-label="Previous banner" onClick={goToPrevious}>
               <FaChevronLeft />
             </button>
@@ -454,7 +754,7 @@ export default function ShopClient() {
               {adminBanners.map((_, index) => (
                 <span
                   key={index}
-                  className={index === activeSlide ? "active" : ""}
+                  className={index === realBannerIndex ? "active" : ""}
                   onClick={() => goToSlide(index)}
                 />
               ))}
@@ -709,6 +1009,165 @@ export default function ShopClient() {
               </div>
             ) : (
               <p className="shopWishlistEmpty">Your wishlist is empty. Use the heart on a product to save it here.</p>
+            )}
+          </article>
+        </div>
+      )}
+      {authModalOpen && (
+        <div className="shopDetailOverlay" role="dialog" aria-modal="true" aria-label="Authentication">
+          <article className="shopWishlistModal" style={{ maxWidth: "450px" }}>
+            <button
+              type="button"
+              className="shopDetailClose"
+              onClick={() => setAuthModalOpen(false)}
+              aria-label="Close modal"
+            >
+              <FaXmark />
+            </button>
+            <h2>{authMode === "login" ? "Sign In" : "Create Account"}</h2>
+            
+            {authSuccess ? (
+              <div className="shopAuthSuccess" style={{ textAlign: "center", padding: "20px 0" }}>
+                <p style={{ color: "#ffe500", fontWeight: 600, fontSize: "1.1rem" }}>{authSuccess}</p>
+                <p style={{ color: "#a1a1aa", fontSize: "0.9rem" }}>Logging you in...</p>
+              </div>
+            ) : (
+              <form onSubmit={authMode === "login" ? handleLoginSubmit : handleRegisterSubmit} autoComplete="off" style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
+                {authMode === "register" && (
+                  <div style={{ display: "flex", gap: "12px" }}>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>First Name *</label>
+                      <input
+                        type="text"
+                        value={authFirstName}
+                        onChange={(e) => setAuthFirstName(e.target.value)}
+                        required
+                        placeholder="First name"
+                        style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Last Name *</label>
+                      <input
+                        type="text"
+                        value={authLastName}
+                        onChange={(e) => setAuthLastName(e.target.value)}
+                        required
+                        placeholder="Last name"
+                        style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Email Address *</label>
+                  <input
+                    type="email"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    required
+                    autoComplete="off"
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readonly')}
+                    placeholder="your@email.com"
+                    style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
+                  />
+                </div>
+
+                {authMode === "register" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Phone Number *</label>
+                    <input
+                      type="tel"
+                      value={authPhone}
+                      onChange={(e) => setAuthPhone(e.target.value)}
+                      required
+                      maxLength={10}
+                      placeholder="10-digit phone number"
+                      style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Password *</label>
+                  <input
+                    type="password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    required
+                    autoComplete="new-password"
+                    readOnly
+                    onFocus={(e) => e.target.removeAttribute('readonly')}
+                    placeholder="Enter password"
+                    style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
+                  />
+                </div>
+
+                {authMode === "register" && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Confirm Password *</label>
+                    <input
+                      type="password"
+                      value={authConfirmPassword}
+                      onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                      required
+                      placeholder="Confirm password"
+                      style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
+                    />
+                  </div>
+                )}
+
+                {authError && (
+                  <p style={{ color: "#ef4444", fontSize: "0.85rem", margin: "4px 0 0", fontWeight: 500 }}>
+                    {authError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="shopAddButton"
+                  style={{ width: "100%", padding: "12px", marginTop: "8px", fontWeight: 700, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <FaSpinner style={{ animation: "spin 1s linear infinite" }} /> Processing...
+                    </>
+                  ) : authMode === "login" ? (
+                    "Sign In"
+                  ) : (
+                    "Create Account"
+                  )}
+                </button>
+
+                <div style={{ textAlign: "center", marginTop: "8px" }}>
+                  {authMode === "login" ? (
+                    <p style={{ fontSize: "0.85rem", color: "#a1a1aa", margin: 0 }}>
+                      Don&apos;t have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => { setAuthMode("register"); setAuthError(""); }}
+                        style={{ background: "none", border: "none", color: "#ffe500", fontWeight: 600, cursor: "pointer", padding: 0 }}
+                      >
+                        Sign Up
+                      </button>
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: "0.85rem", color: "#a1a1aa", margin: 0 }}>
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        onClick={() => { setAuthMode("login"); setAuthError(""); }}
+                        style={{ background: "none", border: "none", color: "#ffe500", fontWeight: 600, cursor: "pointer", padding: 0 }}
+                      >
+                        Sign In
+                      </button>
+                    </p>
+                  )}
+                </div>
+              </form>
             )}
           </article>
         </div>
