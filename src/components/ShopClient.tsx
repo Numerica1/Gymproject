@@ -319,15 +319,13 @@ export default function ShopClient() {
   };
 
   const toggleWishlist = (product: Product) => {
-    setWishlist((current) => {
-      const productId = getProductId(product);
-      const nextWishlist = current.includes(productId)
-        ? current.filter((id) => id !== productId)
-        : [...current, productId];
+    const productId = getProductId(product);
+    const nextWishlist = wishlist.includes(productId)
+      ? wishlist.filter((id) => id !== productId)
+      : [...wishlist, productId];
 
-      window.localStorage.setItem(SHOP_WISHLIST_STORAGE_KEY, JSON.stringify(nextWishlist));
-      return nextWishlist;
-    });
+    window.localStorage.setItem(SHOP_WISHLIST_STORAGE_KEY, JSON.stringify(nextWishlist));
+    setWishlist(nextWishlist);
   };
 
 
@@ -347,21 +345,19 @@ export default function ShopClient() {
     const maxStock = Number(product.stock) || 0;
     const nextQuantity = Math.max(0, Math.min(quantity, maxStock));
 
-    setCart((current) => {
-      const productId = getProductId(product);
-      const updatedCart = nextQuantity === 0
-        ? current.filter((item) => getProductId(item.product) !== productId)
-        : current.some((item) => getProductId(item.product) === productId)
-        ? current.map((item) =>
+    const productId = getProductId(product);
+    const updatedCart = nextQuantity === 0
+        ? cart.filter((item) => getProductId(item.product) !== productId)
+        : cart.some((item) => getProductId(item.product) === productId)
+        ? cart.map((item) =>
             getProductId(item.product) === productId
               ? { ...item, quantity: nextQuantity }
               : item
           )
-        : [...current, { product, quantity: nextQuantity }];
+        : [...cart, { product, quantity: nextQuantity }];
 
-      saveCartToStorage(updatedCart);
-      return updatedCart;
-    });
+    saveCartToStorage(updatedCart);
+    setCart(updatedCart);
   };
 
   const getCartQuantity = (product: Product) =>

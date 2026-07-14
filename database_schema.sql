@@ -566,6 +566,49 @@ create policy "Clients can view their own bookings"
 -- =============================================================
 -- Gallery images are stored in the gym_data table with key: fitness-bhaktapur-gallery-list
 -- This is handled by the existing gym_data table
+-- Home-page hero content uses key: fitness-bhaktapur-home-page.
+-- Its JSON value includes text, links, and background image URLs.
+-- About-page content uses key: fitness-bhaktapur-about-page.
+
+-- Dedicated CMS tables for editable public pages.
+-- Each table has one singleton record (id = true), storing a JSON document.
+create table if not exists public.home_page_content (
+  id         boolean primary key default true check (id),
+  content    jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.about_page_content (
+  id         boolean primary key default true check (id),
+  content    jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.touch_page_content_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists home_page_content_touch_updated_at on public.home_page_content;
+create trigger home_page_content_touch_updated_at
+before update on public.home_page_content
+for each row execute function public.touch_page_content_updated_at();
+
+drop trigger if exists about_page_content_touch_updated_at on public.about_page_content;
+create trigger about_page_content_touch_updated_at
+before update on public.about_page_content
+for each row execute function public.touch_page_content_updated_at();
+
+alter table public.home_page_content enable row level security;
+alter table public.about_page_content enable row level security;
+
+drop policy if exists "Public home page content can be read" on public.home_page_content;
+create policy "Public home page content can be read" on public.home_page_content for select using (true);
+drop policy if exists "Public about page content can be read" on public.about_page_content;
+create policy "Public about page content can be read" on public.about_page_content for select using (true);
 
 -- =============================================================
 -- 16. LEGACY GYM_DATA TABLE (for backward compatibility)
@@ -651,9 +694,71 @@ create policy "Anyone can insert shop categories"
   on public.shop_categories for insert with check (true);
 
 drop policy if exists "Anyone can update shop categories" on public.shop_categories;
-create policy "Anyone can update shop categories"
+create policy "Anyone can update shop_categories"
   on public.shop_categories for update using (true) with check (true);
 
 drop policy if exists "Anyone can delete shop categories" on public.shop_categories;
 create policy "Anyone can delete shop categories"
   on public.shop_categories for delete using (true);
+
+-- =============================================================
+-- 18. SOFT DELETE SUPPORT
+-- All admin-managed tables get an is_deleted flag so records can be
+-- hidden (moved to Trash) instead of permanently removed, while
+-- remaining available for restore and preserved for reporting/FKs.
+-- =============================================================
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'public.products',
+    'public.shop_categories',
+    'public.brands',
+    'public.classes',
+    'public.trainers',
+    'public.memberships',
+    'public.reviews',
+    'public.offers',
+    'public.blogs'
+  ]
+  loop
+    execute format('alter table %s add column if not exists is_deleted boolean not null default false', t);
+    execute format('alter table %s add column if not exists deleted_at timestamptz', t);
+    execute format('alter table %s add column if not exists deleted_by text', t);
+    execute format('create index if not exists idx_%s_is_deleted on %s (is_deleted)', replace(t, 'public.', ''), t);
+  end loop;
+end $$;
+
+-- Helper to soft-delete a record (set is_deleted = true) without removing it.
+-- Normal deletes MUST use this instead of SQL DELETE so records stay restorable.
+create or replace function public.soft_delete_record(
+  table_name text,
+  record_id uuid,
+  deleted_by text default null
+)
+returns void language plpgsql security definer as $$
+begin
+  execute format(
+    'update %I set is_deleted = true, deleted_at = now(), deleted_by = %L where id = %L',
+    table_name,
+    coalesce(deleted_by, 'Admin'),
+    record_id
+  );
+end;
+$$;
+
+-- Helper to restore a soft-deleted record.
+create or replace function public.restore_record(
+  table_name text,
+  record_id uuid
+)
+returns void language plpgsql security definer as $$
+begin
+  execute format(
+    'update %I set is_deleted = false, deleted_at = null, deleted_by = null where id = %L',
+    table_name,
+    record_id
+  );
+end;
+$$;

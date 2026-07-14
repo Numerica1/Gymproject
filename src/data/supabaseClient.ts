@@ -36,6 +36,47 @@ interface SupabaseTrainer {
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
+}
+
+interface SupabaseBlog {
+  id: string;
+  title: string;
+  content: string;
+  image_url?: string;
+  slug?: string;
+  author_name?: string;
+  category?: string;
+  read_time?: string;
+  summary?: string;
+  source_payload?: unknown;
+  created_at: string;
+  updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
+}
+
+interface SupabaseMembership {
+  id: string;
+  name: string;
+  duration: number;
+  price: number;
+  plan_key?: string;
+  access?: string;
+  trainer?: string;
+  sessions_total?: number;
+  features?: unknown;
+  upcoming_classes?: unknown;
+  highlighted?: boolean;
+  source_payload?: unknown;
+  created_at: string;
+  updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 interface SupabaseClass {
@@ -59,6 +100,9 @@ interface SupabaseClass {
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 interface SupabaseProduct {
@@ -80,6 +124,9 @@ interface SupabaseProduct {
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 interface SupabaseBrand {
@@ -93,6 +140,9 @@ interface SupabaseBrand {
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 interface SupabaseOffer {
@@ -109,6 +159,9 @@ interface SupabaseOffer {
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 interface SupabaseOrder {
@@ -140,6 +193,9 @@ interface SupabaseReview {
   source_payload?: unknown;
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 interface SupabasePayment {
@@ -353,12 +409,12 @@ type GymShopCategoryPayload = SourcePayload & Partial<{
 
 // Generic Supabase API functions
 async function supabaseGet<T>(table: string, params?: Record<string, string>): Promise<T[]> {
-  const url = new URL(`${SUPABASE_API_URL}/${table}`);
-  Object.entries(params || {}).forEach(([key, value]) => {
-    url.searchParams.append(key, value);
-  });
-
-  const response = await fetch(url.toString());
+  // Build URL string manually to avoid new URL() throwing on relative paths in browser/Node
+  const queryParts = Object.entries(params || {}).map(
+    ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
+  );
+  const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+  const response = await fetch(`${SUPABASE_API_URL}/${table}${query}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch from ${table}`);
   }
@@ -378,7 +434,7 @@ async function supabasePost<T>(table: string, data: T): Promise<T> {
   return response.json();
 }
 
-async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): Promise<T> {
+async function supabaseUpdate<T>(table: string, id: string, data: Record<string, unknown>): Promise<T> {
   const response = await fetch(`${SUPABASE_API_URL}/${table}?id=${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -388,6 +444,103 @@ async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): P
   if (!response.ok) {
     throw new Error(`Failed to update in ${table}`);
   }
+
+  return response.json();
+}
+
+async function supabaseUpdateByColumn<T>(
+  table: string,
+  column: string,
+  value: string,
+  data: Record<string, unknown>
+): Promise<T> {
+  const response = await fetch(
+    `${SUPABASE_API_URL}/${table}?${column}=${encodeURIComponent(value)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to update in ${table}`);
+  }
+
+  return response.json();
+}
+
+async function supabaseDeleteByColumn(table: string, column: string, value: string): Promise<void> {
+  const response = await fetch(
+    `${SUPABASE_API_URL}/${table}?${column}=${encodeURIComponent(value)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete from ${table}`);
+  }
+}
+
+// Soft delete: mark a row as deleted without removing it from the database.
+export async function softDeleteByTable(table: string, id: string, deletedBy = "Admin"): Promise<void> {
+  await supabaseUpdate(table, id, {
+    is_deleted: true,
+    deleted_at: new Date().toISOString(),
+    deleted_by: deletedBy,
+  });
+}
+
+// Restore a previously soft-deleted row.
+export async function restoreByTable(table: string, id: string): Promise<void> {
+  await supabaseUpdate(table, id, {
+    is_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+  });
+}
+
+// Permanently remove a row from the database (used by "Delete Permanently").
+export async function permanentDeleteByTable(table: string, id: string): Promise<void> {
+  await supabaseDelete(table, id);
+}
+
+// Soft delete by an arbitrary stable column (used when the local item has no uuid id).
+export async function softDeleteByColumn(
+  table: string,
+  column: string,
+  value: string,
+  deletedBy = "Admin"
+): Promise<void> {
+  await supabaseUpdateByColumn(table, column, value, {
+    is_deleted: true,
+    deleted_at: new Date().toISOString(),
+    deleted_by: deletedBy,
+  });
+}
+
+export async function restoreByColumn(table: string, column: string, value: string): Promise<void> {
+  await supabaseUpdateByColumn(table, column, value, {
+    is_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+  });
+}
+
+export async function permanentDeleteByColumn(table: string, column: string, value: string): Promise<void> {
+  await supabaseDeleteByColumn(table, column, value);
+}
+
+async function supabaseDelete(table: string, id: string): Promise<void> {
+  const response = await fetch(`${SUPABASE_API_URL}/${table}?id=${id}`, {
+    method: "DELETE",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete from ${table}`);
+  }
+}
   return response.json();
 }
 
@@ -474,6 +627,73 @@ function fromSupabaseTrainer(supabaseTrainer: SupabaseTrainer): SourcePayload {
     certificate: supabaseTrainer.bio,
     category: supabaseTrainer.category,
     clients: supabaseTrainer.clients_label || "0 clients",
+    id: supabaseTrainer.id,
+  };
+}
+
+function toSupabaseBlog(blog: SourcePayload): SupabaseInsert<SupabaseBlog> {
+  const content = Array.isArray(blog.content) ? blog.content.map(String).join("\n\n") : String(blog.content || "");
+  return {
+    title: String(blog.title || "Untitled"),
+    content,
+    image_url: typeof blog.image === "string" ? blog.image : undefined,
+    slug: typeof blog.slug === "string" ? blog.slug : undefined,
+    author_name: typeof blog.author === "string" ? blog.author : undefined,
+    category: typeof blog.category === "string" ? blog.category : undefined,
+    read_time: typeof blog.readTime === "string" ? blog.readTime : undefined,
+    summary: typeof blog.summary === "string" ? blog.summary : undefined,
+    source_payload: blog,
+  };
+}
+
+function fromSupabaseBlog(row: SupabaseBlog): SourcePayload {
+  const source = isSourcePayload(row.source_payload) ? row.source_payload : {};
+  return {
+    ...source,
+    id: row.id,
+    slug: row.slug || source.slug || row.id,
+    title: row.title,
+    image: row.image_url || source.image || "/images/gym-corner.jpg",
+    author: row.author_name || source.author || "Admin",
+    category: row.category || source.category || "Fitness",
+    readTime: row.read_time || source.readTime || "5 min read",
+    summary: row.summary || source.summary || "",
+    content: Array.isArray(source.content) ? source.content : row.content.split(/\n\n+/).filter(Boolean),
+    date: source.date || new Date(row.created_at).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }),
+  };
+}
+
+function toSupabaseMembership(plan: SourcePayload): SupabaseInsert<SupabaseMembership> {
+  return {
+    name: String(plan.name || "Membership"),
+    duration: 30,
+    price: Number(plan.price) || 0,
+    plan_key: typeof plan.key === "string" ? plan.key : undefined,
+    access: typeof plan.access === "string" ? plan.access : undefined,
+    trainer: typeof plan.trainer === "string" ? plan.trainer : undefined,
+    sessions_total: Number(plan.sessionsTotal) || 0,
+    features: Array.isArray(plan.features) ? plan.features : [],
+    upcoming_classes: Array.isArray(plan.upcomingClasses) ? plan.upcomingClasses : [],
+    highlighted: Boolean(plan.highlighted),
+    source_payload: plan,
+  };
+}
+
+function fromSupabaseMembership(row: SupabaseMembership): SourcePayload {
+  const source = isSourcePayload(row.source_payload) ? row.source_payload : {};
+  return {
+    ...source,
+    id: row.id,
+    key: row.plan_key || source.key || row.id,
+    name: row.name,
+    price: row.price,
+    access: row.access || source.access || "",
+    trainer: row.trainer || source.trainer || "",
+    sessionsTotal: row.sessions_total || source.sessionsTotal || 0,
+    features: Array.isArray(row.features) ? row.features : (source.features || []),
+    upcomingClasses: Array.isArray(row.upcoming_classes) ? row.upcoming_classes : (source.upcomingClasses || []),
+    highlighted: row.highlighted ?? source.highlighted ?? false,
+    id: row.id,
   };
 }
 
@@ -511,6 +731,7 @@ function fromSupabaseClass(supabaseClass: SupabaseClass): SourcePayload {
     benefits: Array.isArray(supabaseClass.benefits) ? supabaseClass.benefits.join(", ") : "",
     schedule: supabaseClass.full_schedule,
     tag: supabaseClass.tag,
+    id: supabaseClass.id,
   };
 }
 
@@ -606,6 +827,7 @@ function fromSupabaseOffer(supabaseOffer: SupabaseOffer): SourcePayload {
     code: supabaseOffer.code,
     validTill: supabaseOffer.end_date,
     status: supabaseOffer.status,
+    id: supabaseOffer.id,
   };
 }
 
@@ -659,6 +881,7 @@ function fromSupabaseReview(supabaseReview: SupabaseReview): SourcePayload {
     reviewText: supabaseReview.comment,
     status: supabaseReview.status,
     date: new Date(supabaseReview.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }),
+    id: supabaseReview.id,
   };
 }
 
@@ -766,6 +989,29 @@ export const supabaseTrainers = {
   create: (trainer: Record<string, unknown>) => supabasePost("trainers", toSupabaseTrainer(trainer)),
   update: (id: string, trainer: Record<string, unknown>) => supabaseUpdate("trainers", id, toSupabaseTrainer(trainer)),
   delete: (id: string) => supabaseDelete("trainers", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("trainers", id, deletedBy),
+  restore: (id: string) => restoreByTable("trainers", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("trainers", { trashed: "true" }),
+};
+
+export const supabaseBlogs = {
+  get: () => supabaseGet<SupabaseBlog>("blogs").then(data => data.map(fromSupabaseBlog)),
+  create: (blog: Record<string, unknown>) => supabasePost("blogs", toSupabaseBlog(blog)),
+  update: (id: string, blog: Record<string, unknown>) => supabaseUpdate("blogs", id, toSupabaseBlog(blog)),
+  delete: (id: string) => supabaseDelete("blogs", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("blogs", id, deletedBy),
+  restore: (id: string) => restoreByTable("blogs", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("blogs", { trashed: "true" }),
+};
+
+export const supabaseMemberships = {
+  get: () => supabaseGet<SupabaseMembership>("memberships").then(data => data.map(fromSupabaseMembership)),
+  create: (plan: Record<string, unknown>) => supabasePost("memberships", toSupabaseMembership(plan)),
+  update: (id: string, plan: Record<string, unknown>) => supabaseUpdate("memberships", id, toSupabaseMembership(plan)),
+  delete: (id: string) => supabaseDelete("memberships", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("memberships", id, deletedBy),
+  restore: (id: string) => restoreByTable("memberships", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("memberships", { trashed: "true" }),
 };
 
 export const supabaseClasses = {
@@ -773,6 +1019,9 @@ export const supabaseClasses = {
   create: (classSchedule: Record<string, unknown>) => supabasePost("classes", toSupabaseClass(classSchedule)),
   update: (id: string, classSchedule: Record<string, unknown>) => supabaseUpdate("classes", id, toSupabaseClass(classSchedule)),
   delete: (id: string) => supabaseDelete("classes", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("classes", id, deletedBy),
+  restore: (id: string) => restoreByTable("classes", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("classes", { trashed: "true" }),
 };
 
 export const supabaseProducts = {
@@ -780,6 +1029,9 @@ export const supabaseProducts = {
   create: (product: Record<string, unknown>) => supabasePost("products", toSupabaseProduct(product)),
   update: (id: string, product: Record<string, unknown>) => supabaseUpdate("products", id, toSupabaseProduct(product)),
   delete: (id: string) => supabaseDelete("products", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("products", id, deletedBy),
+  restore: (id: string) => restoreByTable("products", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("products", { trashed: "true" }),
 };
 
 export const supabaseBrands = {
@@ -787,6 +1039,9 @@ export const supabaseBrands = {
   create: (brand: Record<string, unknown>) => supabasePost("brands", toSupabaseBrand(brand)),
   update: (id: string, brand: Record<string, unknown>) => supabaseUpdate("brands", id, toSupabaseBrand(brand)),
   delete: (id: string) => supabaseDelete("brands", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("brands", id, deletedBy),
+  restore: (id: string) => restoreByTable("brands", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("brands", { trashed: "true" }),
 };
 
 export const supabaseOffers = {
@@ -794,6 +1049,9 @@ export const supabaseOffers = {
   create: (offer: Record<string, unknown>) => supabasePost("offers", toSupabaseOffer(offer)),
   update: (id: string, offer: Record<string, unknown>) => supabaseUpdate("offers", id, toSupabaseOffer(offer)),
   delete: (id: string) => supabaseDelete("offers", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("offers", id, deletedBy),
+  restore: (id: string) => restoreByTable("offers", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("offers", { trashed: "true" }),
 };
 
 export const supabaseOrders = {
@@ -808,6 +1066,9 @@ export const supabaseReviews = {
   create: (review: Record<string, unknown>) => supabasePost("reviews", toSupabaseReview(review)),
   update: (id: string, review: Record<string, unknown>) => supabaseUpdate("reviews", id, toSupabaseReview(review)),
   delete: (id: string) => supabaseDelete("reviews", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("reviews", id, deletedBy),
+  restore: (id: string) => restoreByTable("reviews", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("reviews", { trashed: "true" }),
 };
 
 export const supabasePayments = {
@@ -865,4 +1126,7 @@ export const supabaseShopCategories = {
   create: (cat: Record<string, unknown>) => supabasePost("shop_categories", toSupabaseShopCategory(cat)),
   update: (id: string, cat: Record<string, unknown>) => supabaseUpdate("shop_categories", id, toSupabaseShopCategory(cat)),
   delete: (id: string) => supabaseDelete("shop_categories", id),
+  softDelete: (id: string, deletedBy?: string) => softDeleteByTable("shop_categories", id, deletedBy),
+  restore: (id: string) => restoreByTable("shop_categories", id),
+  getDeleted: () => supabaseGet<Record<string, unknown>>("shop_categories", { trashed: "true" }),
 };

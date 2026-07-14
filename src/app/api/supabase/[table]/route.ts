@@ -41,6 +41,19 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
   return payload;
 }
 
+// Tables that support soft deletion. Reads hide is_deleted rows by default.
+const SOFT_DELETE_TABLES = new Set([
+  "products",
+  "shop_categories",
+  "brands",
+  "classes",
+  "trainers",
+  "memberships",
+  "reviews",
+  "offers",
+  "blogs",
+]);
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ table: string }> }) {
   try {
     const { table } = await params;
@@ -70,6 +83,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     
     if (offset) {
       path += `&offset=${offset}`;
+    }
+
+    // Soft-delete scoping: by default hide deleted rows; allow explicit views.
+    if (SOFT_DELETE_TABLES.has(table)) {
+      const trashed = searchParams.get("trashed");
+      const includeAll = searchParams.get("all") === "true";
+      if (trashed === "true") {
+        path += `&is_deleted=eq.true`;
+      } else if (!includeAll) {
+        path += `&or=(is_deleted.eq.false,is_deleted.is.null)`;
+      }
     }
 
     const data = await supabaseRequest(path);

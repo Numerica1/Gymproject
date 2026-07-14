@@ -3,6 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const TABLE_NAME = process.env.SUPABASE_GYM_TABLE || "gym_data";
+const PAGE_CONTENT_TABLES: Record<string, string> = {
+  "fitness-bhaktapur-home-page": "home_page_content",
+  "fitness-bhaktapur-about-page": "about_page_content",
+};
+
+function getDataTarget(key: string) {
+  const pageTable = PAGE_CONTENT_TABLES[key];
+  return pageTable
+    ? { table: pageTable, select: "id,content", valueColumn: "content", conflictColumn: "id", row: (value: unknown) => ({ id: true, content: value }) }
+    : { table: TABLE_NAME, select: "key,value", valueColumn: "value", conflictColumn: "key", row: (value: unknown) => ({ key, value }) };
+}
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -54,12 +65,13 @@ export async function GET(request: NextRequest) {
       return jsonError("Missing required key query parameter.", 400);
     }
 
-    const encodedKey = encodeURIComponent(key);
-    const rows = await supabaseRequest(`${TABLE_NAME}?key=eq.${encodedKey}&select=key,value&limit=1`);
+    const target = getDataTarget(key);
+    const filter = target.conflictColumn === "id" ? "id=eq.true" : `key=eq.${encodeURIComponent(key)}`;
+    const rows = await supabaseRequest(`${target.table}?${filter}&select=${target.select}&limit=1`);
 
     return NextResponse.json({
       key,
-      value: Array.isArray(rows) && rows[0] ? rows[0].value : null,
+      value: Array.isArray(rows) && rows[0] ? rows[0][target.valueColumn] : null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -98,15 +110,16 @@ export async function PUT(request: NextRequest) {
     // Capture value before the Supabase call so the catch block can use it
     bodyValue = (body as { value: unknown }).value;
 
-    const rows = await supabaseRequest(`${TABLE_NAME}?on_conflict=key`, {
+    const target = getDataTarget(key);
+    const rows = await supabaseRequest(`${target.table}?on_conflict=${target.conflictColumn}`, {
       method: "POST",
       headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-      body: JSON.stringify([{ key, value: (body as { value: unknown }).value }]),
+      body: JSON.stringify([target.row((body as { value: unknown }).value)]),
     });
 
     return NextResponse.json({
       key,
-      value: Array.isArray(rows) && rows[0] ? rows[0].value : (body as { value: unknown }).value,
+      value: Array.isArray(rows) && rows[0] ? rows[0][target.valueColumn] : (body as { value: unknown }).value,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "";

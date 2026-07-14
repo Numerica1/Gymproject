@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { defaultGymContent, type SharedGymContent } from "./sharedGymContent";
+import { defaultGymContent, type SharedGymContent, type SharedMembershipPlan } from "./sharedGymContent";
 import { demoClients, type DemoClient } from "./clientPortal";
 import { blogPosts, type BlogPost } from "./blogs";
 export type { BlogPost };
@@ -21,6 +21,8 @@ import {
   supabaseBookings,
   supabaseContactMessages,
   supabaseShopCategories,
+  supabaseBlogs,
+  supabaseMemberships,
 } from "./supabaseClient";
 
 // Define storage keys
@@ -40,6 +42,8 @@ export const GYM_BOOKINGS_KEY = "fitness-bhaktapur-bookings-list";
 export const GYM_GALLERY_KEY = "fitness-bhaktapur-gallery-list";
 export const GYM_CONTACT_MESSAGES_KEY = "fitness-bhaktapur-contact-messages";
 export const GYM_SHOP_CATEGORIES_KEY = "fitness-bhaktapur-shop-categories";
+export const GYM_HOME_PAGE_KEY = "fitness-bhaktapur-home-page";
+export const GYM_ABOUT_PAGE_KEY = "fitness-bhaktapur-about-page";
 
 // Change event name for local tab notifications
 export const GYM_DATA_CHANGED_EVENT = "fitness-bhaktapur-data-changed";
@@ -141,6 +145,21 @@ function normalizeGymDataValue<T>(key: string, value: T): T {
     } as T;
   }
 
+  if (key === GYM_HOME_PAGE_KEY && typeof value === "object" && !Array.isArray(value)) {
+    const homePage = value as Partial<HomePageContent>;
+    return {
+      ...defaultHomePageContent,
+      ...homePage,
+      slides: Array.isArray(homePage.slides) && homePage.slides.length
+        ? homePage.slides.filter((slide): slide is string => typeof slide === "string" && Boolean(slide))
+        : defaultHomePageContent.slides,
+    } as T;
+  }
+
+  if (key === GYM_ABOUT_PAGE_KEY && typeof value === "object" && !Array.isArray(value)) {
+    return { ...defaultAboutPageContent, ...(value as Partial<AboutPageContent>) } as T;
+  }
+
   if (key === GYM_PRODUCTS_KEY && Array.isArray(value)) {
     return value.map((p, index) => {
       if (p && typeof p === "object") {
@@ -182,6 +201,7 @@ function normalizeGymDataValue<T>(key: string, value: T): T {
 
 // Types
 export type Trainer = {
+  id?: string;
   name: string;
   specialty: string;
   clients: string;
@@ -231,6 +251,7 @@ export type Brand = {
 };
 
 export type Offer = {
+  id?: string;
   name: string;
   type: string;
   discount: string;
@@ -253,6 +274,7 @@ export type OrderLog = {
 };
 
 export type Review = {
+  id?: string;
   customer: string;
   product: string;
   rating: string;
@@ -269,6 +291,7 @@ export type AttendanceLog = {
 };
 
 export type ClassSchedule = {
+  id?: string;
   className: string;
   trainer: string;
   time: string;
@@ -523,6 +546,14 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
     } else if (key === GYM_SHOP_CATEGORIES_KEY) {
       const data = await supabaseShopCategories.get();
       return data as T;
+    } else if (key === GYM_BLOGS_KEY) {
+      const data = await supabaseBlogs.get();
+      // Only use the dedicated table if it actually has records;
+      // otherwise fall through to gym_data which has the persisted JSON
+      if (data && data.length > 0) {
+        return data as T;
+      }
+      // fall through to gym_data
     }
   } catch (error) {
     console.warn("Supabase load failed, falling back to gym_data:", error);
@@ -538,7 +569,32 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
   }
 
   const payload = (await response.json()) as { value: T | null };
-  return normalizeGymDataValue(key, payload.value ?? seed);
+  const normalized = normalizeGymDataValue(key, payload.value ?? seed);
+
+  if (key === GYM_SETTINGS_KEY) {
+    try {
+      const membershipPlans = await supabaseMemberships.get();
+      if (membershipPlans.length) {
+        return { ...(normalized as SharedGymContent), membershipPlans } as T;
+      }
+      // Memberships table empty but gym_data has plans — seed dedicated table in background
+      const gymDataPlans = (normalized as SharedGymContent).membershipPlans;
+      if (Array.isArray(gymDataPlans) && gymDataPlans.length > 0) {
+        saveGymData(key, normalized).catch(() => {});
+      }
+    } catch {
+      // The generic settings record remains available while memberships migrate.
+    }
+  }
+
+  if (key === GYM_BLOGS_KEY) {
+    // Blogs dedicated table was empty — seed it in the background from gym_data values
+    if (Array.isArray(normalized) && normalized.length > 0) {
+      saveGymData(key, normalized).catch(() => {});
+    }
+  }
+
+  return normalized;
 }
 
 export async function saveGymData<T>(key: string, value: T): Promise<T> {
@@ -557,6 +613,33 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
           return supabaseClients.create(client);
         })
       );
+    } else if (key === GYM_BLOGS_KEY && Array.isArray(value)) {
+      const blogs = value as WithId<BlogPost>[];
+      const existingBlogs = await supabaseBlogs.get().catch(() => []) as WithId<BlogPost>[];
+      const existingBySlug = new Map(existingBlogs.map((blog) => [blog.slug, blog]));
+      await Promise.all(blogs.map((blog) => {
+        const existing = existingBySlug.get(blog.slug);
+        return existing?.id
+          ? supabaseBlogs.update(existing.id, blog as unknown as Record<string, unknown>)
+          : supabaseBlogs.create(blog as unknown as Record<string, unknown>);
+      }));
+      await Promise.all(existingBlogs
+        .filter((existing) => existing.id && !blogs.some((blog) => blog.slug === existing.slug))
+        .map((existing) => supabaseBlogs.softDelete(existing.id!)));
+    } else if (key === GYM_SETTINGS_KEY && value && typeof value === "object") {
+      const settings = value as unknown as SharedGymContent;
+      const plans = settings.membershipPlans as WithId<SharedMembershipPlan>[];
+      const existingPlans = await supabaseMemberships.get().catch(() => []) as WithId<SharedMembershipPlan>[];
+      const existingByKey = new Map(existingPlans.map((plan) => [plan.key, plan]));
+      await Promise.all(plans.map((plan) => {
+        const existing = existingByKey.get(plan.key);
+        return existing?.id
+          ? supabaseMemberships.update(existing.id, plan as Record<string, unknown>)
+          : supabaseMemberships.create(plan as Record<string, unknown>);
+      }));
+      await Promise.all(existingPlans
+        .filter((existing) => existing.id && !plans.some((plan) => plan.key === existing.key))
+        .map((existing) => supabaseMemberships.softDelete(existing.id!)));
     } else if (key === GYM_TRAINERS_KEY && Array.isArray(value)) {
       // Sync trainers to Supabase
       await Promise.all(
@@ -868,6 +951,64 @@ export function useGymState<T>(key: string, seed: T): [T, (val: T) => void] {
 // Domain specific hooks
 export function useGymSettings() {
   return useGymState<SharedGymContent>(GYM_SETTINGS_KEY, defaultGymContent);
+}
+
+export type HomePageContent = {
+  eyebrow: string;
+  headingFirstLine: string;
+  headingSecondLine: string;
+  description: string;
+  primaryButtonLabel: string;
+  primaryButtonLink: string;
+  secondaryButtonLabel: string;
+  secondaryButtonLink: string;
+  slides: string[];
+};
+
+export const defaultHomePageContent: HomePageContent = {
+  eyebrow: "Fitness Bhaktapur",
+  headingFirstLine: "Transform Your Body",
+  headingSecondLine: "Transform Your Life",
+  description: "Join our fitness community and achieve your goals with expert trainers, modern equipment, and programs built for real progress.",
+  primaryButtonLabel: "View Programs",
+  primaryButtonLink: "/services",
+  secondaryButtonLabel: "Join Now",
+  secondaryButtonLink: "/join",
+  slides: ["/images/hero-gym.jpg", "/images/equipment-row.jpg", "/images/group-training.jpg"],
+};
+
+export function useHomePageContent() {
+  return useGymState<HomePageContent>(GYM_HOME_PAGE_KEY, defaultHomePageContent);
+}
+
+export type AboutPageContent = {
+  introEyebrow: string;
+  introTitle: string;
+  introBodyOne: string;
+  introBodyTwo: string;
+  introImage: string;
+  missionHeading: string;
+  missionBodyOne: string;
+  missionBodyTwo: string;
+  missionImageOne: string;
+  missionImageTwo: string;
+};
+
+export const defaultAboutPageContent: AboutPageContent = {
+  introEyebrow: "Welcome to Gym Fitness Bhaktapur",
+  introTitle: "Transform Your Body,\nTransform Your Life",
+  introBodyOne: "Fitness Bhaktapur stands as a premier fitness destination in Nepal, dedicated to providing a comprehensive health and wellness experience. Equipped with modern strength-training gear, advanced cardiovascular machinery, and specialized zones for functional fitness, CrossFit, and yoga, we cater to all fitness levels.",
+  introBodyTwo: "Our facility offers flexible hours and supportive, structured programs tailored to your personal goals. Whether you are aiming to build strength, enhance endurance, find mental peace, or reset your mobility, we provide the perfect space and guidance to elevate your lifestyle.",
+  introImage: "/images/gym-corner.jpg",
+  missionHeading: "Our Mission",
+  missionBodyOne: "At Fitness Bhaktapur, our mission is to empower individuals in our community to build lasting, healthy habits and achieve peak performance. We believe that true fitness goes beyond physical strength—it encompasses mental clarity, emotional balance, and a supportive network of like-minded people.",
+  missionBodyTwo: "We strive to lower the barriers to high-quality health training by delivering professional coaching, safe and clean facilities, and educational resources. By fostering an inclusive environment, we encourage every member to push their limits and lead a more active, vibrant, and fulfilling life.",
+  missionImageOne: "/images/calm-yoga.jpg",
+  missionImageTwo: "/images/pullup-training.jpg",
+};
+
+export function useAboutPageContent() {
+  return useGymState<AboutPageContent>(GYM_ABOUT_PAGE_KEY, defaultAboutPageContent);
 }
 
 export function useGymClients() {

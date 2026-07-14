@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -66,7 +66,18 @@ import {
   type ShopCategory,
   parseScheduleTable,
   serializeScheduleTable,
+  useHomePageContent,
+  useAboutPageContent,
+  type HomePageContent,
+  type AboutPageContent,
+  GYM_DATA_CHANGED_EVENT,
 } from "../data/gymData";
+
+import { softDeleteByTable, softDeleteByColumn } from "../data/supabaseClient";
+import { showToast, ToastViewport } from "./Toast";
+import { confirmDialog, ConfirmDialogHost } from "./ConfirmDialog";
+import TrashManager from "./TrashManager";
+import { motion, AnimatePresence } from "framer-motion";
 
 import type { DemoClient } from "../data/clientPortal";
 import type { SharedMembershipPlan, SharedGymContent, Banner } from "../data/sharedGymContent";
@@ -137,7 +148,10 @@ type AdminSection =
   | "reports"
   | "stock"
   | "banners"
-  | "announcements";
+  | "announcements"
+  | "home"
+  | "about"
+  | "trash";
 
 const navItems: { id: AdminSection; label: string; icon: ReactNode }[] = [
   { id: "dashboard", label: "Dashboard", icon: <FaChartLine /> },
@@ -157,6 +171,9 @@ const navItems: { id: AdminSection; label: string; icon: ReactNode }[] = [
   { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
   { id: "banners", label: "Banners", icon: <FaImages /> },
   { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
+  { id: "blogs", label: "Blog Posts", icon: <FaEdit /> },
+  { id: "home", label: "Home Page", icon: <FaImages /> },
+  { id: "about", label: "About Us", icon: <FaImages /> },
   { id: "gallery", label: "Gallery", icon: <FaImages /> },
   { id: "contacts", label: "Contact Messages", icon: <FaEnvelope /> },
   { id: "settings", label: "Settings", icon: <FaCog /> },
@@ -189,15 +206,28 @@ const navGroups = [
       { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
     ]
   },
-  {
-    title: "CONTENT MANAGEMENT",
-    items: [
-      { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
-      { id: "gallery", label: "Gallery", icon: <FaImages /> },
-      { id: "settings", label: "Settings", icon: <FaCog /> },
-    ]
-  }
-];
+    {
+      title: "CONTENT MANAGEMENT",
+      items: [
+        { id: "blogs", label: "Blog Posts", icon: <FaEdit /> },
+        { id: "home", label: "Home Page", icon: <FaImages /> },
+        { id: "about", label: "About Us", icon: <FaImages /> },
+        { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
+        { id: "gallery", label: "Gallery", icon: <FaImages /> },
+        { id: "settings", label: "Settings", icon: <FaCog /> },
+      ]
+    },
+    {
+      title: "TRASH MANAGEMENT",
+      items: [
+        {
+          id: "trash",
+          label: "Trash",
+          icon: <FaTrash />,
+        },
+      ]
+    }
+  ];
 
 function Badge({ value, className }: { value: string; className?: string }) {
   const tone = ["Active", "Paid", "Published", "Delivered", "Approved", "Checked In"].includes(value)
@@ -276,6 +306,8 @@ export default function AdminPanel() {
   const [gallery, setGallery] = useGymGallery();
   const [contactMessages, setContactMessages] = useGymContactMessages();
   const [shopCategories, setShopCategories] = useGymShopCategories();
+  const [homePage, setHomePage] = useHomePageContent();
+  const [aboutPage, setAboutPage] = useAboutPageContent();
 
   // Active form overlays
   const [modalType, setModalType] = useState<"add" | "edit" | null>(null);
@@ -331,6 +363,157 @@ export default function AdminPanel() {
     setModalType("edit");
     setActiveItem(item);
   };
+
+  // ----- Soft Delete (Trash) system -----
+  const [trashCount, setTrashCount] = useState(0);
+
+  const refreshTrashCounts = useCallback(async () => {
+    try {
+      const response = await fetch("/api/trash", { cache: "no-store" });
+      if (!response.ok) return;
+      const data = (await response.json()) as { counts?: Record<string, number> };
+      const counts = data.counts || {};
+      setTrashCount(Object.values(counts).reduce((sum, value) => sum + (value || 0), 0));
+    } catch {
+      // Trash count is non-critical; ignore network errors.
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshTrashCounts();
+  }, [refreshTrashCounts]);
+
+  const MODULE_TABLE: Record<string, string> = {
+    products: "products",
+    brands: "brands",
+    shop_categories: "shop_categories",
+    classes: "classes",
+    trainers: "trainers",
+    memberships: "memberships",
+    reviews: "reviews",
+    offers: "offers",
+    blogs: "blogs",
+  };
+
+  type SoftDeleteItem = { id?: string; key?: string };
+
+  const softDeleteItem = async (module: keyof typeof MODULE_TABLE, item: SoftDeleteItem) => {
+    const confirmed = await confirmDialog({
+      title: "Move to Trash?",
+      message: "Are you sure you want to move this item to Trash? You can restore it later.",
+      confirmLabel: "Move to Trash",
+      cancelLabel: "Cancel",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    const remove = () => {
+      switch (module) {
+        case "products":
+          setProducts((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "brands":
+          setBrands((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "shop_categories":
+          setShopCategories((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "classes":
+          setClasses((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "trainers":
+          setTrainers((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "reviews":
+          setReviews((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "offers":
+          setOffers((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "blogs":
+          setBlogs((list) => list.filter((x) => x.id !== item.id));
+          break;
+        case "memberships":
+          setSettings((settings) => ({
+            ...settings,
+            membershipPlans: settings.membershipPlans.filter((plan) => plan.key !== item.key),
+          }));
+          break;
+        default:
+          break;
+      }
+    };
+
+    const reinsert = () => {
+      switch (module) {
+        case "products":
+          setProducts((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Product]));
+          break;
+        case "brands":
+          setBrands((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Brand]));
+          break;
+        case "shop_categories":
+          setShopCategories((list) =>
+            list.some((x) => x.id === item.id) ? list : [...list, item as ShopCategory]
+          );
+          break;
+        case "classes":
+          setClasses((list) =>
+            list.some((x) => x.id === item.id) ? list : [...list, item as ClassSchedule]
+          );
+          break;
+        case "trainers":
+          setTrainers((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Trainer]));
+          break;
+        case "reviews":
+          setReviews((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Review]));
+          break;
+        case "offers":
+          setOffers((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Offer]));
+          break;
+        case "blogs":
+          setBlogs((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as BlogPost]));
+          break;
+        case "memberships":
+          setSettings((settings) => {
+            if (settings.membershipPlans.some((plan) => plan.key === item.key)) return settings;
+            return {
+              ...settings,
+              membershipPlans: [...settings.membershipPlans, item as SharedMembershipPlan],
+            };
+          });
+          break;
+        default:
+          break;
+      }
+    };
+
+    remove();
+    try {
+      if (module === "memberships") {
+        await softDeleteByColumn("memberships", "plan_key", String(item.key));
+      } else {
+        if (!item.id) throw new Error("Missing record id");
+        await softDeleteByTable(MODULE_TABLE[module], item.id);
+      }
+      showToast("Moved to Trash. You can restore it later.", "success");
+      setTrashCount((count) => count + 1);
+      window.dispatchEvent(new CustomEvent(GYM_DATA_CHANGED_EVENT));
+    } catch {
+      reinsert();
+      showToast("Could not move the item to Trash. Please try again.", "error");
+    }
+  };
+
+  const handleRestoreMembership = useCallback((plan: unknown) => {
+    setSettings((settings) => {
+      const typedPlan = plan as SharedMembershipPlan;
+      if (settings.membershipPlans.some((existing) => existing.key === typedPlan.key)) {
+        return settings;
+      }
+      return { ...settings, membershipPlans: [...settings.membershipPlans, typedPlan] };
+    });
+  }, [setSettings]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -519,6 +702,9 @@ export default function AdminPanel() {
                   >
                     {item.icon}
                     <span>{item.label}</span>
+                    {item.id === "trash" && trashCount > 0 && (
+                      <span className="adminTrashBadge">{trashCount}</span>
+                    )}
                   </button>
                 ))}
               </nav>
@@ -631,7 +817,10 @@ export default function AdminPanel() {
             setTrainers={setTrainers}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(name) => setTrainers(trainers.filter((t) => t.name !== name))}
+            onDelete={(name) => {
+              const trainer = trainers.find((t) => t.name === name);
+              if (trainer) softDeleteItem("trainers", trainer);
+            }}
           />
         )}
 
@@ -642,12 +831,10 @@ export default function AdminPanel() {
             setSettings={setSettings}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(key) =>
-              setSettings({
-                ...settings,
-                membershipPlans: settings.membershipPlans.filter((p) => p.key !== key),
-              })
-            }
+            onDelete={(key) => {
+              const plan = settings.membershipPlans.find((p) => p.key === key);
+              if (plan) softDeleteItem("memberships", plan);
+            }}
           />
         )}
 
@@ -658,7 +845,10 @@ export default function AdminPanel() {
             setBlogs={setBlogs}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(slug) => setBlogs(blogs.filter((b) => b.slug !== slug))}
+            onDelete={(slug) => {
+              const blog = blogs.find((b) => b.slug === slug);
+              if (blog) softDeleteItem("blogs", blog);
+            }}
           />
         )}
 
@@ -689,7 +879,7 @@ export default function AdminPanel() {
             actionLabel="Add Offer"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(o: Offer) => setOffers(offers.filter((item) => item.code !== o.code))}
+            onDelete={(o: Offer) => softDeleteItem("offers", o)}
             onToggleStatus={(o: Offer) => setOffers(offers.map((item) => item.code === o.code ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
@@ -702,14 +892,7 @@ export default function AdminPanel() {
             actionLabel="Add Brand"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(b: Brand) => {
-              setBrands(brands.filter((item) => item.key !== b.key));
-              setProducts(products.map((product) =>
-                product.brandKey === b.key
-                  ? { ...product, brandKey: "", brandName: "" }
-                  : product
-              ));
-            }}
+            onDelete={(b: Brand) => softDeleteItem("brands", b)}
             onToggleStatus={(b: Brand) => setBrands(brands.map((item) => item.key === b.key ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
@@ -731,7 +914,7 @@ export default function AdminPanel() {
             actionLabel="Add Product"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(p: Product) => setProducts(products.filter((item) => item.id !== p.id))}
+            onDelete={(p: Product) => softDeleteItem("products", p)}
             onToggleStatus={(p: Product) => setProducts(products.map((item) => item.id === p.id ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
@@ -748,7 +931,7 @@ export default function AdminPanel() {
             actionLabel="Add Category"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(c: ShopCategory) => setShopCategories(shopCategories.filter((item) => item.label !== c.label))}
+            onDelete={(c: ShopCategory) => softDeleteItem("shop_categories", c)}
           />
         )}
         {active === "orders" && (
@@ -772,7 +955,7 @@ export default function AdminPanel() {
             actionLabel="Add Review"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(r: Review) => setReviews(reviews.filter((item) => !(item.customer === r.customer && item.product === r.product && item.date === r.date)))}
+            onDelete={(r: Review) => softDeleteItem("reviews", r)}
             onApprove={(r: Review) => setReviews(reviews.map((item) => item.customer === r.customer && item.product === r.product && item.date === r.date ? { ...item, status: "Approved" } : item))}
             onToggleStatus={(r: Review) => setReviews(reviews.map((item) => item.customer === r.customer && item.product === r.product && item.date === r.date ? { ...item, status: item.status === "Approved" ? "Pending" : "Approved" } : item))}
           />
@@ -809,18 +992,7 @@ export default function AdminPanel() {
             actionLabel="Add Program"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(c: ClassSchedule) =>
-              setClasses(
-                classes.filter(
-                  (item) =>
-                    !(
-                      item.className === c.className &&
-                      item.trainer === c.trainer &&
-                      item.time === c.time
-                    )
-                )
-              )
-            }
+            onDelete={(c: ClassSchedule) => softDeleteItem("classes", c)}
           />
         )}
         {active === "bookings" && (
@@ -887,6 +1059,21 @@ export default function AdminPanel() {
             onOpenEdit={handleOpenEdit}
           />
         )}
+
+        {/* Home Page Manager */}
+        {active === "home" && (
+          <HomePageManager content={homePage} setContent={setHomePage} />
+        )}
+
+        {/* About Us Page Manager */}
+        {active === "about" && (
+          <AboutPageManager content={aboutPage} setContent={setAboutPage} />
+        )}
+
+        {active === "trash" && (
+          <TrashManager onChanged={refreshTrashCounts} onRestoreMembership={handleRestoreMembership} />
+        )}
+
         {modalType && (
           <ModalForm
             type={modalType}
@@ -1048,6 +1235,8 @@ export default function AdminPanel() {
         )}
       </section>
     </main>
+    <ToastViewport />
+    <ConfirmDialogHost />
   );
 }
 
@@ -2248,42 +2437,531 @@ function Blogs({
 }) {
   return (
     <div className="adminPage">
-      <PanelHeader title="Blogs" action="Add Blog" onAction={onOpenAdd} />
-      <div className="adminTableWrap">
-        <table className="adminTable">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Author</th>
-              <th>Published On</th>
-              <th>Read Time</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {blogs.map((b) => (
-              <tr key={b.slug}>
-                <td><strong>{b.title}</strong></td>
-                <td>{b.category}</td>
-                <td>{b.author}</td>
-                <td>{b.date}</td>
-                <td>{b.readTime}</td>
-                <td>
-                  <div className="adminTableActionRow">
-                    <button className="adminActionBtn edit" onClick={() => onOpenEdit(b)} aria-label="Edit Blog">
+      <PanelHeader title="Blog Posts" action="Write New Post" onAction={onOpenAdd} />
+
+      {/* Stats bar */}
+      <div style={{ display: "flex", gap: "16px", marginBottom: "24px", flexWrap: "wrap" }}>
+        {[
+          { label: "Total Posts", value: blogs.length },
+          { label: "Categories", value: new Set(blogs.map(b => b.category)).size },
+          { label: "Authors", value: new Set(blogs.map(b => b.author)).size },
+        ].map(stat => (
+          <div key={stat.label} style={{
+            background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.18)",
+            borderRadius: "10px", padding: "14px 22px", minWidth: "130px",
+          }}>
+            <div style={{ fontSize: "1.5rem", fontWeight: 700, color: "#fbbf24" }}>{stat.value}</div>
+            <div style={{ fontSize: "0.78rem", color: "#a1a1aa", marginTop: "2px" }}>{stat.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {blogs.length === 0 ? (
+        <div style={{
+          textAlign: "center", padding: "64px 24px",
+          background: "rgba(255,255,255,0.02)", borderRadius: "16px",
+          border: "1px dashed rgba(251,191,36,0.25)",
+        }}>
+          <div style={{ fontSize: "3rem", marginBottom: "12px" }}>📝</div>
+          <h3 style={{ color: "#fbbf24", marginBottom: "8px" }}>No Blog Posts Yet</h3>
+          <p style={{ color: "#71717a", marginBottom: "20px" }}>Write your first post to engage your gym community.</p>
+          <button className="adminPrimaryButton" onClick={onOpenAdd}>
+            <FaEdit /> Write New Post
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+          gap: "20px",
+        }}>
+          {blogs.map((b) => (
+            <div key={b.slug} style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "14px", overflow: "hidden",
+              transition: "border-color 0.2s, transform 0.2s",
+              cursor: "default",
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(251,191,36,0.4)"; (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.08)"; (e.currentTarget as HTMLDivElement).style.transform = "none"; }}
+            >
+              {/* Thumbnail */}
+              <div style={{ position: "relative", height: "160px", overflow: "hidden", background: "#18181b" }}>
+                <Image
+                  src={b.image || "/images/pullup-training.jpg"}
+                  alt={b.title}
+                  fill
+                  unoptimized
+                  style={{ objectFit: "cover", opacity: 0.85 }}
+                />
+                <div style={{
+                  position: "absolute", top: "10px", left: "10px",
+                  background: "rgba(251,191,36,0.9)", color: "#000",
+                  fontSize: "0.7rem", fontWeight: 700, padding: "3px 10px",
+                  borderRadius: "20px", letterSpacing: "0.05em", textTransform: "uppercase",
+                }}>
+                  {b.category || "Fitness"}
+                </div>
+                <div style={{
+                  position: "absolute", top: "10px", right: "10px",
+                  background: "rgba(0,0,0,0.65)", color: "#a1a1aa",
+                  fontSize: "0.7rem", padding: "3px 10px", borderRadius: "20px",
+                }}>
+                  {b.readTime || "5 min read"}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: "16px" }}>
+                <h3 style={{
+                  color: "#f4f4f5", fontSize: "0.95rem", fontWeight: 700,
+                  marginBottom: "6px", lineHeight: 1.4,
+                  display: "-webkit-box", WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical", overflow: "hidden",
+                }}>
+                  {b.title}
+                </h3>
+                <p style={{
+                  color: "#71717a", fontSize: "0.8rem", marginBottom: "12px",
+                  display: "-webkit-box", WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical", overflow: "hidden",
+                }}>
+                  {b.summary || (Array.isArray(b.content) ? b.content[0] : b.content)}
+                </p>
+
+                {/* Meta */}
+                <div style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "12px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <div style={{
+                      width: "28px", height: "28px", borderRadius: "50%",
+                      background: "linear-gradient(135deg, #fbbf24, #f59e0b)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "0.7rem", fontWeight: 700, color: "#000",
+                    }}>
+                      {(b.author || "A")[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ color: "#d4d4d8", fontSize: "0.75rem", fontWeight: 600 }}>{b.author || "Admin"}</div>
+                      <div style={{ color: "#52525b", fontSize: "0.7rem" }}>{b.date}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      className="adminActionBtn edit"
+                      onClick={() => onOpenEdit(b)}
+                      aria-label="Edit Blog"
+                      title="Edit Post"
+                      style={{ padding: "6px 10px" }}
+                    >
                       <FaEdit />
                     </button>
-                    <button className="adminActionBtn delete" onClick={() => onDelete(b.slug)} aria-label="Delete Blog">
+                    <button
+                      className="adminActionBtn delete"
+                      onClick={() => onDelete(b.slug)}
+                      aria-label="Delete Blog"
+                      title="Delete Post"
+                      style={{ padding: "6px 10px" }}
+                    >
                       <FaTrashAlt />
                     </button>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HomePageManager({
+  content,
+  setContent,
+}: {
+  content: HomePageContent;
+  setContent: (value: HomePageContent) => void;
+}) {
+  const [draft, setDraft] = useState<HomePageContent>(content);
+  const [message, setMessage] = useState("");
+  const [slideStatus, setSlideStatus] = useState<Record<number, string>>({});
+  const draftRef = useRef<HomePageContent>(content);
+
+  useEffect(() => {
+    draftRef.current = content;
+    setDraft(content);
+  }, [content]);
+
+  const updateField = (field: keyof HomePageContent, value: string | string[]) => {
+    const next = { ...draftRef.current, [field]: value } as HomePageContent;
+    draftRef.current = next;
+    setDraft(next);
+    return next;
+  };
+
+  const handleSlideImageChange = (index: number, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    setSlideStatus((s) => ({ ...s, [index]: "Uploading…" }));
+    const reader = new FileReader();
+    reader.onload = async () => {
+      if (typeof reader.result !== "string") return;
+      let imageUrl = await compressImage(reader.result, 1400);
+      try {
+        const formData = new FormData();
+        formData.append("file", imageUrl);
+        formData.append("bucket", "gym-images");
+        const res = await fetch("/api/upload-image", { method: "POST", body: formData });
+        if (res.ok) {
+          const data = await res.json() as { url?: string };
+          if (data.url) imageUrl = data.url;
+        }
+      } catch { /* fallback to compressed */ }
+      const newSlides = [...draftRef.current.slides];
+      newSlides[index] = imageUrl;
+      updateField("slides", newSlides);
+      setContent({ ...draftRef.current, slides: newSlides });
+      setSlideStatus((s) => ({ ...s, [index]: "Slide image saved!" }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setContent(draftRef.current);
+    setMessage("Home page updated successfully.");
+    window.setTimeout(() => setMessage(""), 3000);
+  };
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="Home Page Content" />
+      <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "28px", maxWidth: "860px" }}>
+
+        {/* Hero Text Section */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            🏠 Hero Section Text
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div className="adminFormGroup" style={{ gridColumn: "1 / -1" }}>
+              <label>Eyebrow / Tag Line</label>
+              <input
+                value={draft.eyebrow}
+                onChange={(e) => updateField("eyebrow", e.target.value)}
+                placeholder="e.g. Fitness Bhaktapur"
+              />
+            </div>
+            <div className="adminFormGroup">
+              <label>Heading — First Line</label>
+              <input
+                value={draft.headingFirstLine}
+                onChange={(e) => updateField("headingFirstLine", e.target.value)}
+                placeholder="e.g. Transform Your Body"
+              />
+            </div>
+            <div className="adminFormGroup">
+              <label>Heading — Second Line</label>
+              <input
+                value={draft.headingSecondLine}
+                onChange={(e) => updateField("headingSecondLine", e.target.value)}
+                placeholder="e.g. Transform Your Life"
+              />
+            </div>
+            <div className="adminFormGroup" style={{ gridColumn: "1 / -1" }}>
+              <label>Description / Subtitle</label>
+              <textarea
+                value={draft.description}
+                onChange={(e) => updateField("description", e.target.value)}
+                rows={3}
+                placeholder="Short tagline shown below the heading…"
+                style={{ resize: "vertical" }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons Section */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            🔗 Call-to-Action Buttons
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+            <div className="adminFormGroup">
+              <label>Primary Button Label</label>
+              <input
+                value={draft.primaryButtonLabel}
+                onChange={(e) => updateField("primaryButtonLabel", e.target.value)}
+                placeholder="e.g. View Programs"
+              />
+            </div>
+            <div className="adminFormGroup">
+              <label>Primary Button Link</label>
+              <input
+                value={draft.primaryButtonLink}
+                onChange={(e) => updateField("primaryButtonLink", e.target.value)}
+                placeholder="e.g. /services"
+              />
+            </div>
+            <div className="adminFormGroup">
+              <label>Secondary Button Label</label>
+              <input
+                value={draft.secondaryButtonLabel}
+                onChange={(e) => updateField("secondaryButtonLabel", e.target.value)}
+                placeholder="e.g. Join Now"
+              />
+            </div>
+            <div className="adminFormGroup">
+              <label>Secondary Button Link</label>
+              <input
+                value={draft.secondaryButtonLink}
+                onChange={(e) => updateField("secondaryButtonLink", e.target.value)}
+                placeholder="e.g. /join"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Hero Slides — fixed 3 slots */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            🖼️ Hero Background Photos
+          </h3>
+          <p style={{ color: "#71717a", fontSize: "0.8rem", marginBottom: "20px" }}>
+            Exactly 3 photos rotate as the hero background with a smooth crossfade. Each should be a wide landscape image (min 1400×800px recommended).
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+            {Array.from({ length: 3 }).map((_, idx) => {
+              const slide = draft.slides[idx] ?? "";
+              return (
+                <div key={idx} style={{ background: "rgba(255,255,255,0.02)", borderRadius: "10px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)" }}>
+                  <div style={{ position: "relative", height: "150px", background: "#18181b" }}>
+                    {slide ? (
+                      <Image src={slide} alt={`Slide ${idx + 1}`} fill unoptimized style={{ objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "#52525b", gap: "6px" }}>
+                        <FaCamera style={{ fontSize: "1.4rem" }} />
+                        <span style={{ fontSize: "0.75rem" }}>No photo yet</span>
+                      </div>
+                    )}
+                    <div style={{ position: "absolute", top: "8px", left: "8px", background: slide ? "rgba(251,191,36,0.9)" : "rgba(0,0,0,0.55)", borderRadius: "20px", padding: "2px 10px", fontSize: "0.7rem", color: slide ? "#000" : "#a1a1aa", fontWeight: 700 }}>
+                      Photo {idx + 1}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <input
+                      value={slide}
+                      onChange={(e) => {
+                        const newSlides = [...draftRef.current.slides];
+                        while (newSlides.length < 3) newSlides.push("");
+                        newSlides[idx] = e.target.value;
+                        updateField("slides", newSlides);
+                      }}
+                      placeholder="Paste image URL…"
+                      style={{ width: "100%", fontSize: "0.78rem" }}
+                    />
+                    <label style={{
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+                      padding: "8px 10px", background: "rgba(251,191,36,0.08)",
+                      border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "6px",
+                      cursor: "pointer", color: "#fbbf24", fontSize: "0.78rem", fontWeight: 600,
+                    }}>
+                      <FaCamera /> {slide ? "Replace Photo" : "Upload Photo"}
+                      <input type="file" accept="image/*" onChange={(e) => handleSlideImageChange(idx, e)} style={{ display: "none" }} />
+                    </label>
+                    {slideStatus[idx] && (
+                      <small style={{ color: "#4ade80", fontSize: "0.72rem" }}>{slideStatus[idx]}</small>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {message && (
+          <div style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: "10px", padding: "12px 18px", color: "#4ade80", fontSize: "0.875rem", fontWeight: 600 }}>
+            ✓ {message}
+          </div>
+        )}
+        <div>
+          <button className="adminPrimaryButton" type="submit" style={{ padding: "12px 32px", fontSize: "0.95rem" }}>
+            Save & Publish Home Page
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function AboutPageManager({
+  content,
+  setContent,
+}: {
+  content: AboutPageContent;
+  setContent: (value: AboutPageContent) => void;
+}) {
+  const [draft, setDraft] = useState<AboutPageContent>(content);
+  const [message, setMessage] = useState("");
+  const [imageStatus, setImageStatus] = useState<Record<string, string>>({});
+  const draftRef = useRef<AboutPageContent>(content);
+
+  useEffect(() => {
+    draftRef.current = content;
+    setDraft(content);
+  }, [content]);
+
+  const updateField = (field: keyof AboutPageContent, value: string) => {
+    const next = { ...draftRef.current, [field]: value };
+    draftRef.current = next;
+    setDraft(next);
+    return next;
+  };
+
+  const handleImageChange = (field: "introImage" | "missionImageOne" | "missionImageTwo", event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    setImageStatus((cur) => ({ ...cur, [field]: "Uploading image…" }));
+    const reader = new FileReader();
+    reader.onload = async () => {
+      if (typeof reader.result !== "string") return;
+      let imageUrl = await compressImage(reader.result, 1200);
+      try {
+        const formData = new FormData();
+        formData.append("file", imageUrl);
+        formData.append("bucket", "gym-images");
+        const response = await fetch("/api/upload-image", { method: "POST", body: formData });
+        if (response.ok) {
+          const data = await response.json() as { url?: string };
+          if (data.url) imageUrl = data.url;
+        }
+      } catch { /* fallback to compressed */ }
+      const next = updateField(field, imageUrl);
+      setContent(next);
+      setImageStatus((cur) => ({ ...cur, [field]: "Photo saved. Live on the About Us page." }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    setContent(draftRef.current);
+    setMessage("About Us page published successfully.");
+    window.setTimeout(() => setMessage(""), 3000);
+  };
+
+  const imageEditor = (field: "introImage" | "missionImageOne" | "missionImageTwo", label: string) => (
+    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "10px", overflow: "hidden" }}>
+      <div style={{ position: "relative", height: "160px", background: "#18181b" }}>
+        {draft[field] ? (
+          <Image src={draft[field]} alt={`${label} preview`} fill unoptimized style={{ objectFit: "cover" }} />
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#52525b", fontSize: "0.8rem" }}>No photo</div>
+        )}
+        <div style={{ position: "absolute", top: "8px", left: "8px", background: "rgba(0,0,0,0.7)", borderRadius: "20px", padding: "2px 10px", fontSize: "0.7rem", color: "#fbbf24", fontWeight: 700 }}>
+          {label}
+        </div>
       </div>
+      <div style={{ padding: "12px" }}>
+        <input
+          value={draft[field]}
+          onChange={(e) => updateField(field, e.target.value)}
+          placeholder="Image URL"
+          style={{ width: "100%", marginBottom: "8px", fontSize: "0.78rem" }}
+        />
+        <label style={{
+          display: "flex", alignItems: "center", gap: "6px",
+          padding: "7px 10px", background: "rgba(251,191,36,0.08)",
+          border: "1px dashed rgba(251,191,36,0.4)", borderRadius: "6px",
+          cursor: "pointer", color: "#fbbf24", fontSize: "0.78rem", fontWeight: 600,
+        }}>
+          <FaCamera /> {draft[field] ? "Change Image" : "Upload Image"}
+          <input type="file" accept="image/*" onChange={(e) => handleImageChange(field, e)} style={{ display: "none" }} />
+        </label>
+        {imageStatus[field] && (
+          <small style={{ color: "#4ade80", fontSize: "0.72rem", marginTop: "4px", display: "block" }}>{imageStatus[field]}</small>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="About Us Page Content" />
+      <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "28px", maxWidth: "860px" }}>
+
+        {/* Intro Section */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            📖 Intro Section
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
+            <div className="adminFormGroup">
+              <label>Eyebrow / Tag Line</label>
+              <input value={draft.introEyebrow} onChange={(e) => updateField("introEyebrow", e.target.value)} placeholder="e.g. Welcome to Gym Fitness Bhaktapur" />
+            </div>
+            <div className="adminFormGroup">
+              <label>Main Title (use \n for line breaks)</label>
+              <input value={draft.introTitle} onChange={(e) => updateField("introTitle", e.target.value)} placeholder="e.g. Transform Your Body,\nTransform Your Life" />
+            </div>
+            <div className="adminFormGroup">
+              <label>Body Paragraph One</label>
+              <textarea value={draft.introBodyOne} onChange={(e) => updateField("introBodyOne", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+            </div>
+            <div className="adminFormGroup">
+              <label>Body Paragraph Two</label>
+              <textarea value={draft.introBodyTwo} onChange={(e) => updateField("introBodyTwo", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+            </div>
+            <div>
+              <div style={{ color: "#a1a1aa", fontSize: "0.82rem", fontWeight: 600, marginBottom: "10px" }}>Intro Image</div>
+              {imageEditor("introImage", "Intro Photo")}
+            </div>
+          </div>
+        </div>
+
+        {/* Mission Section */}
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            🎯 Mission Section
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
+            <div className="adminFormGroup">
+              <label>Mission Heading</label>
+              <input value={draft.missionHeading} onChange={(e) => updateField("missionHeading", e.target.value)} placeholder="e.g. Our Mission" />
+            </div>
+            <div className="adminFormGroup">
+              <label>Mission Paragraph One</label>
+              <textarea value={draft.missionBodyOne} onChange={(e) => updateField("missionBodyOne", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+            </div>
+            <div className="adminFormGroup">
+              <label>Mission Paragraph Two</label>
+              <textarea value={draft.missionBodyTwo} onChange={(e) => updateField("missionBodyTwo", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+            </div>
+            <div>
+              <div style={{ color: "#a1a1aa", fontSize: "0.82rem", fontWeight: 600, marginBottom: "10px" }}>Mission Images</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                {imageEditor("missionImageOne", "Mission Photo 1")}
+                {imageEditor("missionImageTwo", "Mission Photo 2")}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {message && (
+          <div style={{ background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.3)", borderRadius: "10px", padding: "12px 18px", color: "#4ade80", fontSize: "0.875rem", fontWeight: 600 }}>
+            ✓ {message}
+          </div>
+        )}
+        <div>
+          <button className="adminPrimaryButton" type="submit" style={{ padding: "12px 32px", fontSize: "0.95rem" }}>
+            Save & Publish About Us Page
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -2435,20 +3113,8 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
   onApprove?: (item: T) => void;
   onToggleStatus?: (item: T) => void;
 }) {
-  const [pendingDeleteIdx, setPendingDeleteIdx] = useState<number | null>(null);
   const showActions = (onEdit || onDelete) && items && items.length > 0;
   const displayHeaders = showActions ? [...headers, "Actions"] : headers;
-
-  const handleDeleteClick = (idx: number) => {
-    if (pendingDeleteIdx === idx) {
-      // Second click — confirmed
-      const item = items![idx];
-      onDelete!(item);
-      setPendingDeleteIdx(null);
-    } else {
-      setPendingDeleteIdx(idx);
-    }
-  };
 
   return (
     <div className="adminPage">
@@ -2463,76 +3129,63 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx) => {
-              const originalItem = items ? items[idx] : null;
-              const stableKey = `${row[0] ?? ""}-${idx}`;
-              const isPending = pendingDeleteIdx === idx;
-              return (
-                <tr key={stableKey} style={isPending ? { background: "rgba(248,113,113,0.06)" } : undefined}>
-                  {row.map((cell, index) => (
-                    <td key={`${stableKey}-${index}`}>
-                      {["Active", "Inactive", "Paid", "Pending", "Delivered", "Processing", "Shipped", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
-                        onToggleStatus && originalItem ? (
-                          <button type="button" className="adminInlineStatusToggle" onClick={() => onToggleStatus(originalItem)} aria-label={`Change status from ${cell}`}>
-                            <Badge value={cell} />
-                          </button>
-                        ) : <Badge value={cell} />
-                      ) : (
-                        cell
-                      )}
-                    </td>
-                  ))}
-                  {showActions && originalItem && (
-                    <td>
-                      <div className="adminTableActionRow">
-                        {onApprove && !isPending && (originalItem as Record<string, unknown>).status === "Pending" && (
-                          <button
-                            className="adminActionBtn"
-                            onClick={() => onApprove(originalItem)}
-                            aria-label="Approve Review"
-                            title="Approve Review"
-                            style={{ color: "#34d399", marginRight: "4px" }}
-                          >
-                            <FaCheckCircle />
-                          </button>
+            <AnimatePresence initial={false}>
+              {rows.map((row, idx) => {
+                const originalItem = items ? items[idx] : null;
+                const stableKey = `${row[0] ?? ""}-${idx}`;
+                return (
+                  <motion.tr
+                    key={stableKey}
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0, height: 0, backgroundColor: "rgba(251,191,36,0.12)" }}
+                    transition={{ duration: 0.22 }}
+                  >
+                    {row.map((cell, index) => (
+                      <td key={`${stableKey}-${index}`}>
+                        {["Active", "Inactive", "Paid", "Pending", "Delivered", "Processing", "Shipped", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
+                          onToggleStatus && originalItem ? (
+                            <button type="button" className="adminInlineStatusToggle" onClick={() => onToggleStatus(originalItem)} aria-label={`Change status from ${cell}`}>
+                              <Badge value={cell} />
+                            </button>
+                          ) : <Badge value={cell} />
+                        ) : (
+                          cell
                         )}
-                        {onEdit && !isPending && (
-                          <button className="adminActionBtn edit" onClick={() => { setPendingDeleteIdx(null); onEdit(originalItem); }} aria-label="Edit Item">
-                            <FaEdit />
-                          </button>
-                        )}
-                        {onDelete && (
-                          isPending ? (
-                            <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                              <span style={{ fontSize: "0.75rem", color: "#f87171", fontWeight: 700, whiteSpace: "nowrap" }}>Confirm?</span>
-                              <button
-                                className="adminActionBtn delete"
-                                onClick={() => handleDeleteClick(idx)}
-                                aria-label="Confirm Delete"
-                                style={{ background: "rgba(248,113,113,0.25)", border: "1px solid #f87171" }}
-                              >
-                                <FaCheckCircle />
-                              </button>
-                              <button
-                                className="adminActionBtn edit"
-                                onClick={() => setPendingDeleteIdx(null)}
-                                aria-label="Cancel Delete"
-                              >
-                                <FaTimes />
-                              </button>
-                            </div>
-                          ) : (
-                            <button className="adminActionBtn delete" onClick={() => handleDeleteClick(idx)} aria-label="Delete Item">
+                      </td>
+                    ))}
+                    {showActions && originalItem && (
+                      <td>
+                        <div className="adminTableActionRow">
+                          {onApprove && (originalItem as Record<string, unknown>).status === "Pending" && (
+                            <button
+                              className="adminActionBtn"
+                              onClick={() => onApprove(originalItem)}
+                              aria-label="Approve Review"
+                              title="Approve Review"
+                              style={{ color: "#34d399", marginRight: "4px" }}
+                            >
+                              <FaCheckCircle />
+                            </button>
+                          )}
+                          {onEdit && (
+                            <button className="adminActionBtn edit" onClick={() => onEdit(originalItem)} aria-label="Edit Item">
+                              <FaEdit />
+                            </button>
+                          )}
+                          {onDelete && (
+                            <button className="adminActionBtn delete" onClick={() => onDelete(originalItem)} aria-label="Delete Item">
                               <FaTrashAlt />
                             </button>
-                          )
-                        )}
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </motion.tr>
+                );
+              })}
+            </AnimatePresence>
           </tbody>
         </table>
       </div>

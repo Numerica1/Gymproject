@@ -28,6 +28,10 @@ load_env()
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
 TABLE_NAME = os.environ.get("SUPABASE_GYM_TABLE", "gym_data")
+PAGE_CONTENT_TABLES = {
+    "fitness-bhaktapur-home-page": "home_page_content",
+    "fitness-bhaktapur-about-page": "about_page_content",
+}
 PORT = int(os.environ.get("PYTHON_BACKEND_PORT", "8000"))
 ALLOWED_ORIGIN = os.environ.get("CORS_ALLOWED_ORIGIN", "*")
 
@@ -74,6 +78,11 @@ def supabase_request(path: str, method: str = "GET", payload=None, headers=None)
 
 
 def get_gym_data(key: str):
+    page_table = PAGE_CONTENT_TABLES.get(key)
+    if page_table:
+        rows = supabase_request(f"{page_table}?id=eq.true&select=id,content&limit=1")
+        return rows[0].get("content") if rows else None
+
     encoded_key = quote(key, safe="")
     rows = supabase_request(f"{TABLE_NAME}?key=eq.{encoded_key}&select=key,value&limit=1")
     if not rows:
@@ -82,6 +91,16 @@ def get_gym_data(key: str):
 
 
 def set_gym_data(key: str, value):
+    page_table = PAGE_CONTENT_TABLES.get(key)
+    if page_table:
+        rows = supabase_request(
+            f"{page_table}?on_conflict=id",
+            method="POST",
+            payload=[{"id": True, "content": value}],
+            headers={"Prefer": "resolution=merge-duplicates,return=representation"},
+        )
+        return rows[0].get("content") if rows else value
+
     rows = supabase_request(
         f"{TABLE_NAME}?on_conflict=key",
         method="POST",
