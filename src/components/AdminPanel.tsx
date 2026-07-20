@@ -70,14 +70,12 @@ import {
   useAboutPageContent,
   type HomePageContent,
   type AboutPageContent,
-  GYM_DATA_CHANGED_EVENT,
+  useGymTrash,
+  softDeleteItem,
+  restoreItem,
+  permanentDeleteItem,
+  type TrashItem,
 } from "../data/gymData";
-
-import { softDeleteByTable, softDeleteByColumn } from "../data/supabaseClient";
-import { showToast, ToastViewport } from "./Toast";
-import { confirmDialog, ConfirmDialogHost } from "./ConfirmDialog";
-import TrashManager from "./TrashManager";
-import { motion, AnimatePresence } from "framer-motion";
 
 import type { DemoClient } from "../data/clientPortal";
 import type { SharedMembershipPlan, SharedGymContent, Banner } from "../data/sharedGymContent";
@@ -153,31 +151,7 @@ type AdminSection =
   | "about"
   | "trash";
 
-const navItems: { id: AdminSection; label: string; icon: ReactNode }[] = [
-  { id: "dashboard", label: "Dashboard", icon: <FaChartLine /> },
-  { id: "clients", label: "Members", icon: <FaUsers /> },
-  { id: "trainers", label: "Trainers", icon: <FaUserTie /> },
-  { id: "attendance", label: "Attendance", icon: <FaCalendarCheck /> },
-  { id: "classes", label: "Classes", icon: <FaDumbbell /> },
-  { id: "memberships", label: "Memberships", icon: <FaLayerGroup /> },
-  { id: "payments", label: "Payments", icon: <FaCreditCard /> },
-  { id: "reports", label: "Reports", icon: <FaChartLine /> },
-  { id: "shop", label: "Products", icon: <FaShoppingCart /> },
-  { id: "brands", label: "Brands", icon: <FaLayerGroup /> },
-  { id: "shopCategories", label: "Categories", icon: <FaImages /> },
-  { id: "orders", label: "Orders", icon: <FaClipboardList /> },
-  { id: "offers", label: "Coupons", icon: <FaGift /> },
-  { id: "reviews", label: "Reviews", icon: <FaStar /> },
-  { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
-  { id: "banners", label: "Banners", icon: <FaImages /> },
-  { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
-  { id: "blogs", label: "Blog Posts", icon: <FaEdit /> },
-  { id: "home", label: "Home Page", icon: <FaImages /> },
-  { id: "about", label: "About Us", icon: <FaImages /> },
-  { id: "gallery", label: "Gallery", icon: <FaImages /> },
-  { id: "contacts", label: "Contact Messages", icon: <FaEnvelope /> },
-  { id: "settings", label: "Settings", icon: <FaCog /> },
-];
+// navGroups drives sidebar rendering; navItems kept for reference only
 
 const navGroups = [
   {
@@ -206,28 +180,19 @@ const navGroups = [
       { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
     ]
   },
-    {
-      title: "CONTENT MANAGEMENT",
-      items: [
-        { id: "blogs", label: "Blog Posts", icon: <FaEdit /> },
-        { id: "home", label: "Home Page", icon: <FaImages /> },
-        { id: "about", label: "About Us", icon: <FaImages /> },
-        { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
-        { id: "gallery", label: "Gallery", icon: <FaImages /> },
-        { id: "settings", label: "Settings", icon: <FaCog /> },
-      ]
-    },
-    {
-      title: "TRASH MANAGEMENT",
-      items: [
-        {
-          id: "trash",
-          label: "Trash",
-          icon: <FaTrash />,
-        },
-      ]
-    }
-  ];
+  {
+    title: "CONTENT MANAGEMENT",
+    items: [
+      { id: "blogs", label: "Blog Posts", icon: <FaEdit /> },
+      { id: "home", label: "Home Page", icon: <FaImages /> },
+      { id: "about", label: "About Us", icon: <FaImages /> },
+      { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
+      { id: "gallery", label: "Gallery", icon: <FaImages /> },
+      { id: "trash", label: "Trash", icon: <FaTrash /> },
+      { id: "settings", label: "Settings", icon: <FaCog /> },
+    ]
+  }
+];
 
 function Badge({ value, className }: { value: string; className?: string }) {
   const tone = ["Active", "Paid", "Published", "Delivered", "Approved", "Checked In"].includes(value)
@@ -308,6 +273,60 @@ export default function AdminPanel() {
   const [shopCategories, setShopCategories] = useGymShopCategories();
   const [homePage, setHomePage] = useHomePageContent();
   const [aboutPage, setAboutPage] = useAboutPageContent();
+  const { trash, loading: trashLoading, refresh: refreshTrash, setTrash } = useGymTrash();
+
+  // Toast System
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error"; undoAction?: () => void }[]>([]);
+  const addToast = useCallback((message: string, type: "success" | "error" = "success", undoAction?: () => void) => {
+    const id = Date.now().toString() + Math.random().toString(36).slice(2, 6);
+    setToasts((prev) => [...prev, { id, message, type, undoAction }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 5000);
+  }, []);
+
+  const [softDeleteTarget, setSoftDeleteTarget] = useState<{
+    id: string;
+    name: string;
+    tableName: string;
+    moduleLabel: string;
+    onConfirmed: () => void;
+  } | null>(null);
+
+  const handleSoftDelete = useCallback((
+    item: unknown,
+    tableName: string,
+    moduleLabel: string,
+    idField: string,
+    displayField: string,
+    onDeleteLocal: () => void
+  ) => {
+    // Some items might have direct id or idField
+    const rec = item as Record<string, unknown>;
+    const id = String(rec[idField] || rec.id || "");
+    const displayName = String(rec[displayField] || rec.name || rec.title || rec.label || rec.className || rec.code || "Item");
+
+    setSoftDeleteTarget({
+      id: id || "",
+      name: displayName,
+      tableName,
+      moduleLabel,
+      onConfirmed: async () => {
+        onDeleteLocal();
+        addToast(`Moved ${moduleLabel} "${displayName}" to Trash.`, "success", async () => {
+          if (id) {
+            await restoreItem(tableName, id);
+            refreshTrash();
+            window.location.reload();
+          }
+        });
+        if (id) {
+          await softDeleteItem(tableName, id);
+          refreshTrash();
+        }
+      }
+    });
+  }, [addToast, refreshTrash]);
 
   // Active form overlays
   const [modalType, setModalType] = useState<"add" | "edit" | null>(null);
@@ -363,157 +382,6 @@ export default function AdminPanel() {
     setModalType("edit");
     setActiveItem(item);
   };
-
-  // ----- Soft Delete (Trash) system -----
-  const [trashCount, setTrashCount] = useState(0);
-
-  const refreshTrashCounts = useCallback(async () => {
-    try {
-      const response = await fetch("/api/trash", { cache: "no-store" });
-      if (!response.ok) return;
-      const data = (await response.json()) as { counts?: Record<string, number> };
-      const counts = data.counts || {};
-      setTrashCount(Object.values(counts).reduce((sum, value) => sum + (value || 0), 0));
-    } catch {
-      // Trash count is non-critical; ignore network errors.
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshTrashCounts();
-  }, [refreshTrashCounts]);
-
-  const MODULE_TABLE: Record<string, string> = {
-    products: "products",
-    brands: "brands",
-    shop_categories: "shop_categories",
-    classes: "classes",
-    trainers: "trainers",
-    memberships: "memberships",
-    reviews: "reviews",
-    offers: "offers",
-    blogs: "blogs",
-  };
-
-  type SoftDeleteItem = { id?: string; key?: string };
-
-  const softDeleteItem = async (module: keyof typeof MODULE_TABLE, item: SoftDeleteItem) => {
-    const confirmed = await confirmDialog({
-      title: "Move to Trash?",
-      message: "Are you sure you want to move this item to Trash? You can restore it later.",
-      confirmLabel: "Move to Trash",
-      cancelLabel: "Cancel",
-      danger: true,
-    });
-    if (!confirmed) return;
-
-    const remove = () => {
-      switch (module) {
-        case "products":
-          setProducts((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "brands":
-          setBrands((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "shop_categories":
-          setShopCategories((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "classes":
-          setClasses((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "trainers":
-          setTrainers((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "reviews":
-          setReviews((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "offers":
-          setOffers((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "blogs":
-          setBlogs((list) => list.filter((x) => x.id !== item.id));
-          break;
-        case "memberships":
-          setSettings((settings) => ({
-            ...settings,
-            membershipPlans: settings.membershipPlans.filter((plan) => plan.key !== item.key),
-          }));
-          break;
-        default:
-          break;
-      }
-    };
-
-    const reinsert = () => {
-      switch (module) {
-        case "products":
-          setProducts((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Product]));
-          break;
-        case "brands":
-          setBrands((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Brand]));
-          break;
-        case "shop_categories":
-          setShopCategories((list) =>
-            list.some((x) => x.id === item.id) ? list : [...list, item as ShopCategory]
-          );
-          break;
-        case "classes":
-          setClasses((list) =>
-            list.some((x) => x.id === item.id) ? list : [...list, item as ClassSchedule]
-          );
-          break;
-        case "trainers":
-          setTrainers((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Trainer]));
-          break;
-        case "reviews":
-          setReviews((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Review]));
-          break;
-        case "offers":
-          setOffers((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as Offer]));
-          break;
-        case "blogs":
-          setBlogs((list) => (list.some((x) => x.id === item.id) ? list : [...list, item as BlogPost]));
-          break;
-        case "memberships":
-          setSettings((settings) => {
-            if (settings.membershipPlans.some((plan) => plan.key === item.key)) return settings;
-            return {
-              ...settings,
-              membershipPlans: [...settings.membershipPlans, item as SharedMembershipPlan],
-            };
-          });
-          break;
-        default:
-          break;
-      }
-    };
-
-    remove();
-    try {
-      if (module === "memberships") {
-        await softDeleteByColumn("memberships", "plan_key", String(item.key));
-      } else {
-        if (!item.id) throw new Error("Missing record id");
-        await softDeleteByTable(MODULE_TABLE[module], item.id);
-      }
-      showToast("Moved to Trash. You can restore it later.", "success");
-      setTrashCount((count) => count + 1);
-      window.dispatchEvent(new CustomEvent(GYM_DATA_CHANGED_EVENT));
-    } catch {
-      reinsert();
-      showToast("Could not move the item to Trash. Please try again.", "error");
-    }
-  };
-
-  const handleRestoreMembership = useCallback((plan: unknown) => {
-    setSettings((settings) => {
-      const typedPlan = plan as SharedMembershipPlan;
-      if (settings.membershipPlans.some((existing) => existing.key === typedPlan.key)) {
-        return settings;
-      }
-      return { ...settings, membershipPlans: [...settings.membershipPlans, typedPlan] };
-    });
-  }, [setSettings]);
 
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -694,19 +562,26 @@ export default function AdminPanel() {
             <div key={gIdx} className="adminNavSection">
               <span className="adminNavHeader">{group.title}</span>
               <nav className="adminNav" aria-label={`${group.title} navigation`}>
-                {group.items.map((item) => (
-                  <button
-                    key={item.id}
-                    className={active === item.id ? "active" : ""}
-                    onClick={() => setSection(item.id as AdminSection)}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                    {item.id === "trash" && trashCount > 0 && (
-                      <span className="adminTrashBadge">{trashCount}</span>
-                    )}
-                  </button>
-                ))}
+                {group.items.map((item) => {
+                  const isTrash = item.id === "trash";
+                  const badgeCount = isTrash ? trash.length : 0;
+                  return (
+                    <button
+                      key={item.id}
+                      className={active === item.id ? "active" : ""}
+                      onClick={() => setSection(item.id as AdminSection)}
+                      style={{ position: "relative" }}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                      {isTrash && badgeCount > 0 && (
+                        <span className="adminNotificationBadge" style={{ right: "12px", top: "50%", transform: "translateY(-50%)", background: "#fcd34d", color: "#18181b", fontWeight: "bold" }}>
+                          {badgeCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </nav>
             </div>
           ))}
@@ -817,10 +692,9 @@ export default function AdminPanel() {
             setTrainers={setTrainers}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(name) => {
-              const trainer = trainers.find((t) => t.name === name);
-              if (trainer) softDeleteItem("trainers", trainer);
-            }}
+            onDelete={(t: Trainer) => handleSoftDelete(t, "trainers", "Trainer", "id", "name", () => {
+              setTrainers(trainers.filter((item) => item.name !== t.name));
+            })}
           />
         )}
 
@@ -831,10 +705,12 @@ export default function AdminPanel() {
             setSettings={setSettings}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(key) => {
-              const plan = settings.membershipPlans.find((p) => p.key === key);
-              if (plan) softDeleteItem("memberships", plan);
-            }}
+            onDelete={(plan: SharedMembershipPlan) => handleSoftDelete(plan, "memberships", "Membership Plan", "id", "name", () => {
+              setSettings({
+                ...settings,
+                membershipPlans: settings.membershipPlans.filter((p) => p.key !== plan.key),
+              });
+            })}
           />
         )}
 
@@ -845,10 +721,9 @@ export default function AdminPanel() {
             setBlogs={setBlogs}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(slug) => {
-              const blog = blogs.find((b) => b.slug === slug);
-              if (blog) softDeleteItem("blogs", blog);
-            }}
+            onDelete={(b: BlogPost) => handleSoftDelete(b, "blogs", "Blog Post", "id", "title", () => {
+              setBlogs(blogs.filter((item) => item.slug !== b.slug));
+            })}
           />
         )}
 
@@ -879,7 +754,9 @@ export default function AdminPanel() {
             actionLabel="Add Offer"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(o: Offer) => softDeleteItem("offers", o)}
+            onDelete={(o: Offer) => handleSoftDelete(o, "offers", "Coupon Offer", "id", "name", () => {
+              setOffers(offers.filter((item) => item.code !== o.code));
+            })}
             onToggleStatus={(o: Offer) => setOffers(offers.map((item) => item.code === o.code ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
@@ -892,7 +769,14 @@ export default function AdminPanel() {
             actionLabel="Add Brand"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(b: Brand) => softDeleteItem("brands", b)}
+            onDelete={(b: Brand) => handleSoftDelete(b, "brands", "Brand", "id", "name", () => {
+              setBrands(brands.filter((item) => item.key !== b.key));
+              setProducts(products.map((product) =>
+                product.brandKey === b.key
+                  ? { ...product, brandKey: "", brandName: "" }
+                  : product
+              ));
+            })}
             onToggleStatus={(b: Brand) => setBrands(brands.map((item) => item.key === b.key ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
@@ -914,7 +798,9 @@ export default function AdminPanel() {
             actionLabel="Add Product"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(p: Product) => softDeleteItem("products", p)}
+            onDelete={(p: Product) => handleSoftDelete(p, "products", "Product", "id", "name", () => {
+              setProducts(products.filter((item) => item.id !== p.id));
+            })}
             onToggleStatus={(p: Product) => setProducts(products.map((item) => item.id === p.id ? { ...item, status: item.status === "Active" ? "Inactive" : "Active" } : item))}
           />
         )}
@@ -931,7 +817,9 @@ export default function AdminPanel() {
             actionLabel="Add Category"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(c: ShopCategory) => softDeleteItem("shop_categories", c)}
+            onDelete={(c: ShopCategory) => handleSoftDelete(c, "shop_categories", "Category", "id", "label", () => {
+              setShopCategories(shopCategories.filter((item) => item.label !== c.label));
+            })}
           />
         )}
         {active === "orders" && (
@@ -955,7 +843,9 @@ export default function AdminPanel() {
             actionLabel="Add Review"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(r: Review) => softDeleteItem("reviews", r)}
+            onDelete={(r: Review) => handleSoftDelete(r, "reviews", "Review", "id", "customer", () => {
+              setReviews(reviews.filter((item) => !(item.customer === r.customer && item.product === r.product && item.date === r.date)));
+            })}
             onApprove={(r: Review) => setReviews(reviews.map((item) => item.customer === r.customer && item.product === r.product && item.date === r.date ? { ...item, status: "Approved" } : item))}
             onToggleStatus={(r: Review) => setReviews(reviews.map((item) => item.customer === r.customer && item.product === r.product && item.date === r.date ? { ...item, status: item.status === "Approved" ? "Pending" : "Approved" } : item))}
           />
@@ -992,7 +882,18 @@ export default function AdminPanel() {
             actionLabel="Add Program"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(c: ClassSchedule) => softDeleteItem("classes", c)}
+            onDelete={(c: ClassSchedule) => handleSoftDelete(c, "classes", "Program Class", "id", "className", () => {
+              setClasses(
+                classes.filter(
+                  (item) =>
+                    !(
+                      item.className === c.className &&
+                      item.trainer === c.trainer &&
+                      item.time === c.time
+                    )
+                )
+              );
+            })}
           />
         )}
         {active === "bookings" && (
@@ -1071,8 +972,23 @@ export default function AdminPanel() {
         )}
 
         {active === "trash" && (
-          <TrashManager onChanged={refreshTrashCounts} onRestoreMembership={handleRestoreMembership} />
+          <TrashSection
+            trash={trash}
+            loading={trashLoading}
+            refresh={refreshTrash}
+            setTrash={setTrash}
+            addToast={addToast}
+          />
         )}
+
+        {softDeleteTarget && (
+          <SoftDeleteModal
+            target={softDeleteTarget}
+            onClose={() => setSoftDeleteTarget(null)}
+          />
+        )}
+
+        <ToastStack toasts={toasts} setToasts={setToasts} />
 
         {modalType && (
           <ModalForm
@@ -1235,8 +1151,6 @@ export default function AdminPanel() {
         )}
       </section>
     </main>
-    <ToastViewport />
-    <ConfirmDialogHost />
   );
 }
 
@@ -2286,10 +2200,8 @@ function Trainers({ trainers, onOpenAdd, onOpenEdit, onDelete }: {
   setTrainers?: (val: Trainer[] | ((prev: Trainer[]) => Trainer[])) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: Trainer) => void;
-  onDelete: (name: string) => void;
+  onDelete: (trainer: Trainer) => void;
 }) {
-  const [pendingDeleteName, setPendingDeleteName] = useState<string | null>(null);
-
   return (
     <div className="adminPage">
       <PanelHeader title="Our Team" action="Add Team" onAction={onOpenAdd} />
@@ -2307,22 +2219,8 @@ function Trainers({ trainers, onOpenAdd, onOpenEdit, onDelete }: {
               <span className="adminBadge info" style={{ display: "inline-block", marginTop: "6px" }}>{t.category}</span>
             </div>
             <div style={{ position: "absolute", top: "12px", right: "12px", background: "rgba(24, 24, 27, 0.9)", borderRadius: "8px", display: "flex", gap: "4px", padding: "4px", alignItems: "center" }}>
-              {pendingDeleteName === t.name ? (
-                <>
-                  <span style={{ fontSize: "0.7rem", color: "#f87171", fontWeight: 700, padding: "0 2px" }}>Delete?</span>
-                  <button className="adminActionBtn delete" onClick={() => { onDelete(t.name); setPendingDeleteName(null); }} aria-label="Confirm Delete" style={{ background: "rgba(248,113,113,0.25)", border: "1px solid #f87171" }}>
-                    <FaCheckCircle />
-                  </button>
-                  <button className="adminActionBtn edit" onClick={() => setPendingDeleteName(null)} aria-label="Cancel">
-                    <FaTimes />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button className="adminActionBtn edit" onClick={() => { setPendingDeleteName(null); onOpenEdit(t); }} aria-label="Edit Trainer"><FaEdit /></button>
-                  <button className="adminActionBtn delete" onClick={() => setPendingDeleteName(t.name)} aria-label="Delete Trainer"><FaTrashAlt /></button>
-                </>
-              )}
+              <button className="adminActionBtn edit" onClick={() => onOpenEdit(t)} aria-label="Edit Trainer"><FaEdit /></button>
+              <button className="adminActionBtn delete" onClick={() => onDelete(t)} aria-label="Delete Trainer"><FaTrashAlt /></button>
             </div>
           </article>
         ))}
@@ -2379,7 +2277,7 @@ function Memberships({
   setSettings: (val: SharedGymContent | ((prev: SharedGymContent) => SharedGymContent)) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: SharedMembershipPlan) => void;
-  onDelete: (key: string) => void;
+  onDelete: (plan: SharedMembershipPlan) => void;
 }) {
   return (
     <div className="adminPage">
@@ -2410,7 +2308,7 @@ function Memberships({
               <button
                 className="adminIconButton"
                 style={{ background: "rgba(248, 113, 113, 0.1)", color: "#f87171", border: "1px solid rgba(248, 113, 113, 0.2)" }}
-                onClick={() => onDelete(plan.key)}
+                onClick={() => onDelete(plan)}
                 aria-label="Delete Plan"
               >
                 <FaTrashAlt />
@@ -2433,7 +2331,7 @@ function Blogs({
   setBlogs: (val: BlogPost[] | ((prev: BlogPost[]) => BlogPost[])) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: BlogPost) => void;
-  onDelete: (slug: string) => void;
+  onDelete: (blog: BlogPost) => void;
 }) {
   return (
     <div className="adminPage">
@@ -2561,7 +2459,7 @@ function Blogs({
                     </button>
                     <button
                       className="adminActionBtn delete"
-                      onClick={() => onDelete(b.slug)}
+                      onClick={() => onDelete(b)}
                       aria-label="Delete Blog"
                       title="Delete Post"
                       style={{ padding: "6px 10px" }}
@@ -2578,6 +2476,351 @@ function Blogs({
     </div>
   );
 }
+
+// Soft Delete System components
+
+function SoftDeleteModal({
+  target,
+  onClose,
+}: {
+  target: {
+    id: string;
+    name: string;
+    tableName: string;
+    moduleLabel: string;
+    onConfirmed: () => void;
+  };
+  onClose: () => void;
+}) {
+  return (
+    <div className="adminModalOverlay" style={{ zIndex: 1100 }}>
+      <div className="adminModal" style={{ maxWidth: "450px" }}>
+        <div className="adminModalHeader">
+          <h2>Move to Trash</h2>
+          <button className="adminModalClose" onClick={onClose} aria-label="Close modal">
+            <FaTimes />
+          </button>
+        </div>
+        <div className="adminModalBody" style={{ textAlign: "center", padding: "32px 24px" }}>
+          <div style={{ fontSize: "3rem", color: "#fbbf24", marginBottom: "16px", display: "flex", justifyContent: "center" }}>
+            <FaTrash />
+          </div>
+          <h3 style={{ color: "#f4f4f5", fontSize: "1.1rem", marginBottom: "8px", fontWeight: "600" }}>
+            Move this item to Trash?
+          </h3>
+          <p style={{ color: "#a1a1aa", fontSize: "0.88rem", marginBottom: "24px", lineHeight: "1.4" }}>
+            Are you sure you want to move <strong>{target.name}</strong> to Trash? You can restore it later.
+          </p>
+          <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+            <button className="adminBtnCancel" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              className="adminBtnSubmit"
+              style={{ background: "#ef4444", color: "#fff" }}
+              onClick={() => {
+                target.onConfirmed();
+                onClose();
+              }}
+            >
+              Move to Trash
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToastStack({
+  toasts,
+  setToasts,
+}: {
+  toasts: { id: string; message: string; type: "success" | "error"; undoAction?: () => void }[];
+  setToasts: React.Dispatch<React.SetStateAction<{ id: string; message: string; type: "success" | "error"; undoAction?: () => void }[]>>;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "24px",
+        right: "24px",
+        zIndex: 2000,
+        display: "flex",
+        flexDirection: "column",
+        gap: "10px",
+        maxWidth: "350px",
+      }}
+    >
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          style={{
+            background: "#18181b",
+            border: "1px solid #27272a",
+            borderRadius: "8px",
+            padding: "12px 16px",
+            color: "#f4f4f5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.3)",
+            animation: "toastSlideUp 0.3s ease-out forwards",
+          }}
+        >
+          <style>{`
+            @keyframes toastSlideUp {
+              from { transform: translateY(20px); opacity: 0; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+          `}</style>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ color: t.type === "success" ? "#10b981" : "#ef4444" }}>
+              <FaCheckCircle />
+            </span>
+            <span style={{ fontSize: "0.88rem" }}>{t.message}</span>
+          </div>
+          {t.undoAction && (
+            <button
+              onClick={() => {
+                t.undoAction!();
+                setToasts((prev) => prev.filter((item) => item.id !== t.id));
+              }}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#fcd34d",
+                fontWeight: "600",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                padding: "2px 6px",
+                textDecoration: "underline",
+              }}
+            >
+              Undo
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const TRASH_TABS = [
+  { key: "all", label: "All Items" },
+  { key: "Products", label: "Products" },
+  { key: "Categories", label: "Categories" },
+  { key: "Brands", label: "Brands" },
+  { key: "Programs", label: "Programs" },
+  { key: "Trainers", label: "Trainers" },
+  { key: "Memberships", label: "Memberships" },
+  { key: "Reviews", label: "Reviews" },
+  { key: "Offers", label: "Offers" },
+  { key: "Blog Posts", label: "Blog Posts" },
+];
+
+function TrashSection({
+  trash,
+  loading,
+  refresh: _refresh,
+  setTrash,
+  addToast,
+}: {
+  trash: TrashItem[];
+  loading: boolean;
+  refresh: () => void;
+  setTrash: React.Dispatch<React.SetStateAction<TrashItem[]>>;
+  addToast: (message: string, type?: "success" | "error", undo?: () => void) => void;
+}) {
+  const [activeTab, setActiveTab] = useState("all");
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [permanentConfirmId, setPermanentConfirmId] = useState<string | null>(null);
+
+  const handleRestore = async (item: TrashItem) => {
+    try {
+      setRestoringId(item.id);
+      await restoreItem(item.tableName, item.id);
+      setTrash((prev) => prev.filter((t) => t.id !== item.id));
+      addToast(`Restored "${item.name}" successfully!`, "success");
+      // Trigger a page refresh to update active view
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (_err) {
+      addToast("Failed to restore item.", "error");
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  const handlePermanentDelete = async (item: TrashItem) => {
+    try {
+      await permanentDeleteItem(item.tableName, item.id);
+      setTrash((prev) => prev.filter((t) => t.id !== item.id));
+      addToast(`Permanently deleted "${item.name}".`, "success");
+      setPermanentConfirmId(null);
+    } catch (_err) {
+      addToast("Failed to permanently delete item.", "error");
+    }
+  };
+
+  const filteredTrash = activeTab === "all" ? trash : trash.filter((t) => t.module === activeTab);
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="Trash Bin" />
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", borderBottom: "1px solid #27272a" }}>
+        {TRASH_TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          const count = tab.key === "all" ? trash.length : trash.filter((t) => t.module === tab.key).length;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                background: isActive ? "#fbbf24" : "#18181b",
+                color: isActive ? "#18181b" : "#a1a1aa",
+                border: "1px solid #27272a",
+                padding: "8px 16px",
+                borderRadius: "20px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span>{tab.label}</span>
+              <span style={{
+                background: isActive ? "rgba(0,0,0,0.15)" : "#27272a",
+                color: isActive ? "#000" : "#a1a1aa",
+                padding: "2px 6px",
+                borderRadius: "10px",
+                fontSize: "0.75rem",
+              }}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "40px 0", color: "#a1a1aa" }}>Loading Trash...</div>
+      ) : filteredTrash.length === 0 ? (
+        <div style={{
+          textAlign: "center",
+          padding: "64px 24px",
+          background: "rgba(255,255,255,0.02)",
+          borderRadius: "16px",
+          border: "1px dashed #27272a",
+        }}>
+          <div style={{ fontSize: "3rem", marginBottom: "16px" }}>🗑️</div>
+          <h3 style={{ color: "#fbbf24", marginBottom: "8px" }}>Trash Bin Empty</h3>
+          <p style={{ color: "#71717a" }}>No deleted items found in this section.</p>
+        </div>
+      ) : (
+        <div className="adminTableWrap">
+          <table className="adminTable">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Module</th>
+                <th>Deleted On</th>
+                <th>Deleted By</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTrash.map((item) => {
+                const isConfirming = permanentConfirmId === item.id;
+                const formattedDate = item.deletedAt ? new Date(item.deletedAt).toLocaleDateString("en-IN", {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }) : "—";
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <strong>{item.name}</strong>
+                    </td>
+                    <td>
+                      <Badge value={item.module} className="info" />
+                    </td>
+                    <td>{formattedDate}</td>
+                    <td>{item.deletedBy || "System Admin"}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                        {isConfirming ? (
+                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <span style={{ fontSize: "0.75rem", color: "#ef4444", fontWeight: "bold" }}>Irreversible! Confirm?</span>
+                            <button
+                              onClick={() => handlePermanentDelete(item)}
+                              style={{ background: "#ef4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem", fontWeight: "bold" }}
+                            >
+                              Yes, Delete
+                            </button>
+                            <button
+                              onClick={() => setPermanentConfirmId(null)}
+                              style={{ background: "#27272a", color: "#e4e4e7", border: "1px solid #3f3f46", padding: "6px 12px", borderRadius: "4px", cursor: "pointer", fontSize: "0.8rem" }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              disabled={restoringId === item.id}
+                              onClick={() => handleRestore(item)}
+                              style={{
+                                background: "#10b981",
+                                color: "#fff",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "0.8rem",
+                                fontWeight: "600",
+                              }}
+                            >
+                              {restoringId === item.id ? "Restoring..." : "Restore"}
+                            </button>
+                            <button
+                              onClick={() => setPermanentConfirmId(item.id)}
+                              style={{
+                                background: "rgba(239, 68, 68, 0.1)",
+                                color: "#ef4444",
+                                border: "1px solid rgba(239, 68, 68, 0.2)",
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "0.8rem",
+                              }}
+                            >
+                              Delete Permanently
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function HomePageManager({
   content,
@@ -3129,63 +3372,54 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
             </tr>
           </thead>
           <tbody>
-            <AnimatePresence initial={false}>
-              {rows.map((row, idx) => {
-                const originalItem = items ? items[idx] : null;
-                const stableKey = `${row[0] ?? ""}-${idx}`;
-                return (
-                  <motion.tr
-                    key={stableKey}
-                    layout
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0, height: 0, backgroundColor: "rgba(251,191,36,0.12)" }}
-                    transition={{ duration: 0.22 }}
-                  >
-                    {row.map((cell, index) => (
-                      <td key={`${stableKey}-${index}`}>
-                        {["Active", "Inactive", "Paid", "Pending", "Delivered", "Processing", "Shipped", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
-                          onToggleStatus && originalItem ? (
-                            <button type="button" className="adminInlineStatusToggle" onClick={() => onToggleStatus(originalItem)} aria-label={`Change status from ${cell}`}>
-                              <Badge value={cell} />
-                            </button>
-                          ) : <Badge value={cell} />
-                        ) : (
-                          cell
+            {rows.map((row, idx) => {
+              const originalItem = items ? items[idx] : null;
+              const stableKey = `${row[0] ?? ""}-${idx}`;
+              return (
+                <tr key={stableKey}>
+                  {row.map((cell, index) => (
+                    <td key={`${stableKey}-${index}`}>
+                      {["Active", "Inactive", "Paid", "Pending", "Delivered", "Processing", "Shipped", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
+                        onToggleStatus && originalItem ? (
+                          <button type="button" className="adminInlineStatusToggle" onClick={() => onToggleStatus(originalItem)} aria-label={`Change status from ${cell}`}>
+                            <Badge value={cell} />
+                          </button>
+                        ) : <Badge value={cell} />
+                      ) : (
+                        cell
+                      )}
+                    </td>
+                  ))}
+                  {showActions && originalItem && (
+                    <td>
+                      <div className="adminTableActionRow">
+                        {onApprove && (originalItem as Record<string, unknown>).status === "Pending" && (
+                          <button
+                            className="adminActionBtn"
+                            onClick={() => onApprove(originalItem)}
+                            aria-label="Approve Review"
+                            title="Approve Review"
+                            style={{ color: "#34d399", marginRight: "4px" }}
+                          >
+                            <FaCheckCircle />
+                          </button>
                         )}
-                      </td>
-                    ))}
-                    {showActions && originalItem && (
-                      <td>
-                        <div className="adminTableActionRow">
-                          {onApprove && (originalItem as Record<string, unknown>).status === "Pending" && (
-                            <button
-                              className="adminActionBtn"
-                              onClick={() => onApprove(originalItem)}
-                              aria-label="Approve Review"
-                              title="Approve Review"
-                              style={{ color: "#34d399", marginRight: "4px" }}
-                            >
-                              <FaCheckCircle />
-                            </button>
-                          )}
-                          {onEdit && (
-                            <button className="adminActionBtn edit" onClick={() => onEdit(originalItem)} aria-label="Edit Item">
-                              <FaEdit />
-                            </button>
-                          )}
-                          {onDelete && (
-                            <button className="adminActionBtn delete" onClick={() => onDelete(originalItem)} aria-label="Delete Item">
-                              <FaTrashAlt />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    )}
-                  </motion.tr>
-                );
-              })}
-            </AnimatePresence>
+                        {onEdit && (
+                          <button className="adminActionBtn edit" onClick={() => { onEdit(originalItem); }} aria-label="Edit Item">
+                            <FaEdit />
+                          </button>
+                        )}
+                        {onDelete && (
+                          <button className="adminActionBtn delete" onClick={() => onDelete(originalItem)} aria-label="Delete Item">
+                            <FaTrashAlt />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

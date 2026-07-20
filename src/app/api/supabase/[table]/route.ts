@@ -3,6 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
+// Tables that support soft-delete (have is_deleted column)
+const SOFT_DELETE_TABLES = new Set([
+  "products",
+  "brands",
+  "shop_categories",
+  "trainers",
+  "classes",
+  "memberships",
+  "reviews",
+  "offers",
+  "blogs",
+]);
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -41,19 +54,6 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
   return payload;
 }
 
-// Tables that support soft deletion. Reads hide is_deleted rows by default.
-const SOFT_DELETE_TABLES = new Set([
-  "products",
-  "shop_categories",
-  "brands",
-  "classes",
-  "trainers",
-  "memberships",
-  "reviews",
-  "offers",
-  "blogs",
-]);
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ table: string }> }) {
   try {
     const { table } = await params;
@@ -66,9 +66,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const offset = searchParams.get("offset");
     const eq = searchParams.get("eq");
     const eqColumn = searchParams.get("eqColumn");
+    const includeDeleted = searchParams.get("includeDeleted") === "true";
     
     let path = `${table}?select=${encodeURIComponent(select)}`;
     
+    // Filter out soft-deleted records by default for supported tables
+    if (SOFT_DELETE_TABLES.has(table) && !includeDeleted) {
+      path += `&is_deleted=eq.false`;
+    }
+
     if (eq && eqColumn) {
       path += `&${encodeURIComponent(eqColumn)}=eq.${encodeURIComponent(eq)}`;
     }
@@ -83,17 +89,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     
     if (offset) {
       path += `&offset=${offset}`;
-    }
-
-    // Soft-delete scoping: by default hide deleted rows; allow explicit views.
-    if (SOFT_DELETE_TABLES.has(table)) {
-      const trashed = searchParams.get("trashed");
-      const includeAll = searchParams.get("all") === "true";
-      if (trashed === "true") {
-        path += `&is_deleted=eq.true`;
-      } else if (!includeAll) {
-        path += `&or=(is_deleted.eq.false,is_deleted.is.null)`;
-      }
     }
 
     const data = await supabaseRequest(path);
@@ -150,11 +145,26 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get("id");
     const idColumn = searchParams.get("idColumn") || "id";
+    const permanent = searchParams.get("permanent") === "true";
     
     if (!id) {
       return jsonError("Missing id query parameter.", 400);
     }
-    
+
+    // For soft-delete tables: PATCH is_deleted=true unless permanent=true
+    if (SOFT_DELETE_TABLES.has(table) && !permanent) {
+      const data = await supabaseRequest(`${table}?${idColumn}=eq.${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Prefer": "return=representation" },
+        body: JSON.stringify({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+        }),
+      });
+      return NextResponse.json({ softDeleted: true, data: Array.isArray(data) ? data[0] : data });
+    }
+
+    // Hard delete (for tables without soft-delete, or permanent=true)
     await supabaseRequest(`${table}?${idColumn}=eq.${encodeURIComponent(id)}`, {
       method: "DELETE",
     });

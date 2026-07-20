@@ -1,96 +1,84 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 const SUPABASE_URL = process.env.SUPABASE_URL?.replace(/\/$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status });
-}
-
-function getSupabaseHeaders(extra?: HeadersInit): HeadersInit {
+function getHeaders(): HeadersInit {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    throw new Error("Supabase is not configured. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env.");
+    throw new Error("Supabase not configured.");
   }
   return {
     apikey: SUPABASE_KEY,
     Authorization: `Bearer ${SUPABASE_KEY}`,
     "Content-Type": "application/json",
-    ...extra,
+    "Prefer": "return=representation",
   };
 }
 
-async function supabaseRequest(path: string, init: RequestInit = {}) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: getSupabaseHeaders(init.headers),
-    cache: "no-store",
-  });
-  const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    const detail =
-      typeof payload === "object" && payload && "message" in payload
-        ? String(payload.message)
-        : text || response.statusText;
-    throw new Error(detail);
-  }
-  return payload;
+interface TrashModule {
+  tableName: string;
+  module: string;
+  nameColumn: string;
 }
 
-// Module -> Supabase table + the column that holds the human-friendly name.
-const TRASH_MODULES: { module: string; table: string; nameColumn: string }[] = [
-  { module: "Products", table: "products", nameColumn: "name" },
-  { module: "Brands", table: "brands", nameColumn: "name" },
-  { module: "Categories", table: "shop_categories", nameColumn: "label" },
-  { module: "Programs", table: "classes", nameColumn: "title" },
-  { module: "Trainers", table: "trainers", nameColumn: "name" },
-  { module: "Memberships", table: "memberships", nameColumn: "name" },
-  { module: "Reviews", table: "reviews", nameColumn: "customer_name" },
-  { module: "Offers", table: "offers", nameColumn: "title" },
-  { module: "Blogs", table: "blogs", nameColumn: "title" },
+const TRASH_MODULES: TrashModule[] = [
+  { tableName: "products",        module: "Products",      nameColumn: "name" },
+  { tableName: "brands",          module: "Brands",        nameColumn: "name" },
+  { tableName: "shop_categories", module: "Categories",    nameColumn: "label" },
+  { tableName: "trainers",        module: "Trainers",      nameColumn: "name" },
+  { tableName: "classes",         module: "Programs",      nameColumn: "title" },
+  { tableName: "memberships",     module: "Memberships",   nameColumn: "name" },
+  { tableName: "reviews",         module: "Reviews",       nameColumn: "customer_name" },
+  { tableName: "offers",          module: "Offers",        nameColumn: "title" },
+  { tableName: "blogs",           module: "Blog Posts",    nameColumn: "title" },
 ];
 
+async function fetchDeleted(mod: TrashModule) {
+  const url = `${SUPABASE_URL}/rest/v1/${mod.tableName}?is_deleted=eq.true&order=deleted_at.desc&select=id,${mod.nameColumn},deleted_at,deleted_by`;
+  const response = await fetch(url, {
+    headers: getHeaders(),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    // Table may not have is_deleted column yet — return empty
+    return [];
+  }
+
+  const rows = (await response.json()) as Record<string, unknown>[];
+  return rows.map((row) => ({
+    id: String(row.id || ""),
+    name: String(row[mod.nameColumn] || "—"),
+    module: mod.module,
+    tableName: mod.tableName,
+    deletedAt: String(row.deleted_at || ""),
+    deletedBy: String(row.deleted_by || ""),
+  }));
+}
+
 export async function GET() {
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    return NextResponse.json({ error: "Supabase not configured." }, { status: 500 });
+  }
+
   try {
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      // Supabase not configured — there is nothing to list.
-      return NextResponse.json({ counts: {}, items: [] });
-    }
+    const results = await Promise.allSettled(TRASH_MODULES.map(fetchDeleted));
+    const items = results
+      .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof fetchDeleted>>> => r.status === "fulfilled")
+      .flatMap((r) => r.value);
 
-    const items: Array<{
-      module: string;
-      table: string;
-      id: string;
-      name: string;
-      deletedAt: string | null;
-      deletedBy: string | null;
-      payload: unknown;
-    }> = [];
-    const counts: Record<string, number> = {};
+    // Sort by deletedAt desc
+    items.sort((a, b) => {
+      if (!a.deletedAt) return 1;
+      if (!b.deletedAt) return -1;
+      return new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime();
+    });
 
-    await Promise.all(
-      TRASH_MODULES.map(async ({ module, table, nameColumn }) => {
-        const rows = (await supabaseRequest(
-          `${table}?select=id,${nameColumn},deleted_at,deleted_by,source_payload&is_deleted=eq.true&order=deleted_at.desc.nullsfirst`
-        )) as Array<Record<string, unknown>>;
-
-        counts[module] = rows.length;
-        for (const row of rows) {
-          items.push({
-            module,
-            table,
-            id: String(row.id),
-            name: String(row[nameColumn] ?? "Untitled"),
-            deletedAt: row.deleted_at ? String(row.deleted_at) : null,
-            deletedBy: row.deleted_by ? String(row.deleted_by) : null,
-            payload: row.source_payload ?? null,
-          });
-        }
-      })
-    );
-
-    return NextResponse.json({ counts, items });
+    return NextResponse.json(items);
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "Could not load trash.", 500);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Failed to fetch trash." },
+      { status: 500 }
+    );
   }
 }

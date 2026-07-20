@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { defaultGymContent, type SharedGymContent, type SharedMembershipPlan } from "./sharedGymContent";
 import { demoClients, type DemoClient } from "./clientPortal";
 import { blogPosts, type BlogPost } from "./blogs";
@@ -23,6 +23,7 @@ import {
   supabaseShopCategories,
   supabaseBlogs,
   supabaseMemberships,
+  supabaseTrash,
 } from "./supabaseClient";
 
 // Define storage keys
@@ -491,6 +492,51 @@ export function getStorageItem<T>(key: string, seed: T): T {
   }
 }
 
+// ─── Soft Delete Utilities ────────────────────────────────────────────────────
+
+export type TrashItem = {
+  id: string;
+  name: string;
+  module: string;
+  tableName: string;
+  deletedAt: string;
+  deletedBy: string;
+};
+
+/**
+ * Soft-delete an item in Supabase (sets is_deleted=true).
+ * Falls back silently if the item has no Supabase ID.
+ */
+export async function softDeleteItem(tableName: string, id: string): Promise<void> {
+  try {
+    await supabaseTrash.softDelete(tableName, id);
+  } catch (err) {
+    console.warn(`[softDelete] Failed for ${tableName}/${id}:`, err);
+  }
+}
+
+/**
+ * Restore a soft-deleted item (sets is_deleted=false).
+ */
+export async function restoreItem(tableName: string, id: string): Promise<void> {
+  try {
+    await supabaseTrash.restore(tableName, id);
+  } catch (err) {
+    console.warn(`[restore] Failed for ${tableName}/${id}:`, err);
+  }
+}
+
+/**
+ * Permanently delete an item from the database.
+ */
+export async function permanentDeleteItem(tableName: string, id: string): Promise<void> {
+  try {
+    await supabaseTrash.permanentDelete(tableName, id);
+  } catch (err) {
+    console.warn(`[permanentDelete] Failed for ${tableName}/${id}:`, err);
+  }
+}
+
 export function setStorageItem<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(key, JSON.stringify(value));
@@ -625,7 +671,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
       }));
       await Promise.all(existingBlogs
         .filter((existing) => existing.id && !blogs.some((blog) => blog.slug === existing.slug))
-        .map((existing) => supabaseBlogs.softDelete(existing.id!)));
+        .map((existing) => supabaseBlogs.delete(existing.id!)));
     } else if (key === GYM_SETTINGS_KEY && value && typeof value === "object") {
       const settings = value as unknown as SharedGymContent;
       const plans = settings.membershipPlans as WithId<SharedMembershipPlan>[];
@@ -639,7 +685,7 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
       }));
       await Promise.all(existingPlans
         .filter((existing) => existing.id && !plans.some((plan) => plan.key === existing.key))
-        .map((existing) => supabaseMemberships.softDelete(existing.id!)));
+        .map((existing) => supabaseMemberships.delete(existing.id!)));
     } else if (key === GYM_TRAINERS_KEY && Array.isArray(value)) {
       // Sync trainers to Supabase
       await Promise.all(
@@ -1158,3 +1204,30 @@ export function parseScheduleTable(scheduleStr: string | undefined): ScheduleRow
 export function serializeScheduleTable(rows: ScheduleRow[]): string {
   return JSON.stringify(rows);
 }
+
+export function useGymTrash() {
+  const [trash, setTrash] = useState<TrashItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchTrash = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/trash");
+      if (res.ok) {
+        const data = await res.json();
+        setTrash(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch trash:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTrash();
+  }, [fetchTrash]);
+
+  return { trash, loading, refresh: fetchTrash, setTrash };
+}
+
