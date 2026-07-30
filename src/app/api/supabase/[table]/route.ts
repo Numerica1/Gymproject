@@ -10,6 +10,7 @@ const SOFT_DELETE_TABLES = new Set([
   "shop_categories",
   "trainers",
   "classes",
+  "programs",
   "memberships",
   "reviews",
   "offers",
@@ -34,21 +35,50 @@ function getSupabaseHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 async function supabaseRequest(path: string, init: RequestInit = {}) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+  const url = `${SUPABASE_URL}/rest/v1/${path}`;
+  const response = await fetch(url, {
     ...init,
     headers: getSupabaseHeaders(init.headers),
     cache: "no-store",
   });
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
+  let payload: unknown = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
 
   if (!response.ok) {
-    const detail =
+    const message =
       typeof payload === "object" && payload && "message" in payload
-        ? String(payload.message)
+        ? String((payload as { message: unknown }).message)
         : text || response.statusText;
-    throw new Error(detail);
+    const details =
+      typeof payload === "object" && payload && "details" in payload
+        ? String((payload as { details: unknown }).details)
+        : "";
+    const code =
+      typeof payload === "object" && payload && "code" in payload
+        ? String((payload as { code: unknown }).code)
+        : "";
+
+    console.error(`[Supabase REST Error] ${init.method || "GET"} ${url}`, {
+      status: response.status,
+      statusText: response.statusText,
+      url,
+      code,
+      message,
+      details,
+      payload,
+      rawText: text,
+    });
+
+    const errorObj = new Error(details ? `${message} (${details})` : message) as Error & { status?: number; code?: string };
+    errorObj.status = response.status;
+    errorObj.code = code;
+    throw errorObj;
   }
 
   return payload;
@@ -94,7 +124,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const data = await supabaseRequest(path);
     return NextResponse.json(data);
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "Could not load data.", 500);
+    const status = (error as { status?: number }).status || 500;
+    return jsonError(error instanceof Error ? error.message : "Could not load data.", status);
   }
 }
 
@@ -102,6 +133,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { table } = await params;
     const body = await request.json();
+
+    console.log(`[API POST /api/supabase/${table}] Incoming Payload:`, JSON.stringify(body, null, 2));
     
     const data = await supabaseRequest(table, {
       method: "POST",
@@ -111,7 +144,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     
     return NextResponse.json(Array.isArray(data) ? data[0] : data);
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "Could not create data.", 500);
+    const status = (error as { status?: number }).status || 500;
+    return jsonError(error instanceof Error ? error.message : "Could not create data.", status);
   }
 }
 

@@ -116,15 +116,16 @@ create policy "Anyone can view trainers"
   on public.trainers for select using (true);
 
 -- =============================================================
--- 4. CLASSES (Programs)
+-- 4. PROGRAMS
 -- =============================================================
-create table if not exists public.classes (
+create table if not exists public.programs (
   id              uuid        primary key default gen_random_uuid(),
   title           text        not null,
   description     text,
   trainer_id      uuid        references public.trainers (id) on delete set null,
   schedule        timestamptz,
   capacity        integer     not null default 20,
+  program_key     text        unique,
   class_key       text        unique,
   trainer_name    text,
   time_label      text,
@@ -135,26 +136,30 @@ create table if not exists public.classes (
   target_audience text,
   benefits        jsonb       not null default '[]'::jsonb,
   full_schedule   text,
+  tag             text,
   source_payload  jsonb       not null default '{}'::jsonb,
+  is_deleted      boolean     not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
 
-create index if not exists idx_classes_trainer_id on public.classes (trainer_id);
-create index if not exists idx_classes_schedule    on public.classes (schedule);
-create index if not exists idx_classes_class_key   on public.classes (class_key);
-create unique index if not exists ux_classes_class_key on public.classes (class_key);
+create index if not exists idx_programs_trainer_id on public.programs (trainer_id);
+create index if not exists idx_programs_schedule    on public.programs (schedule);
+create index if not exists idx_programs_program_key on public.programs (program_key);
+create index if not exists idx_programs_is_deleted  on public.programs (is_deleted);
 
-drop trigger if exists classes_set_updated_at on public.classes;
-create trigger classes_set_updated_at
-  before update on public.classes
+drop trigger if exists programs_set_updated_at on public.programs;
+create trigger programs_set_updated_at
+  before update on public.programs
   for each row execute function public.set_updated_at();
 
-alter table public.classes enable row level security;
+alter table public.programs enable row level security;
 
-drop policy if exists "Anyone can view classes" on public.classes;
-create policy "Anyone can view classes"
-  on public.classes for select using (true);
+drop policy if exists "Anyone can view programs" on public.programs;
+create policy "Anyone can view programs"
+  on public.programs for select using (true);
 
 -- =============================================================
 -- 5. BRANDS (Shop Product Collections)

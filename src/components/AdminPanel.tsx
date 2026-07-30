@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
 import {
   FaBars,
   FaBell,
@@ -45,7 +44,7 @@ import {
   useGymOrders,
   useGymReviews,
   useGymAttendance,
-  useGymClasses,
+  useGymPrograms,
   useGymBookings,
   useGymGallery,
   useGymContactMessages,
@@ -130,6 +129,7 @@ type AdminSection =
   | "trainers"
   | "memberships"
   | "attendance"
+  | "programs"
   | "classes"
   | "payments"
   | "offers"
@@ -161,7 +161,7 @@ const navGroups = [
       { id: "clients", label: "Members", icon: <FaUsers /> },
       { id: "trainers", label: "Trainers", icon: <FaUserTie /> },
       { id: "attendance", label: "Attendance", icon: <FaCalendarCheck /> },
-      { id: "classes", label: "Classes", icon: <FaDumbbell /> },
+      { id: "programs", label: "Programs", icon: <FaDumbbell /> },
       { id: "memberships", label: "Memberships", icon: <FaLayerGroup /> },
       { id: "payments", label: "Payments", icon: <FaCreditCard /> },
       { id: "reports", label: "Reports", icon: <FaChartLine /> },
@@ -266,7 +266,7 @@ export default function AdminPanel() {
   const [orders, setOrders] = useGymOrders();
   const [reviews, setReviews] = useGymReviews();
   const [attendance, setAttendance] = useGymAttendance();
-  const [classes, setClasses] = useGymClasses();
+  const [programs, setPrograms] = useGymPrograms();
   const [bookings, setBookings] = useGymBookings();
   const [gallery, setGallery] = useGymGallery();
   const [contactMessages, setContactMessages] = useGymContactMessages();
@@ -351,7 +351,7 @@ export default function AdminPanel() {
   const filteredOrders = useMemo(() => filterItems(orders), [orders, filterItems]);
   const filteredReviews = useMemo(() => filterItems(reviews), [reviews, filterItems]);
   const filteredAttendance = useMemo(() => filterItems(attendance), [attendance, filterItems]);
-  const filteredClasses = useMemo(() => filterItems(classes), [classes, filterItems]);
+  const filteredPrograms = useMemo(() => filterItems(programs), [programs, filterItems]);
   const filteredBookings = useMemo(() => filterItems(bookings), [bookings, filterItems]);
   const filteredGallery = useMemo(() => filterItems(gallery), [gallery, filterItems]);
   const filteredContactMessages = useMemo(() => filterItems(contactMessages), [contactMessages, filterItems]);
@@ -832,6 +832,12 @@ export default function AdminPanel() {
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
             onDelete={(o: OrderLog) => setOrders(orders.filter((item) => item.orderId !== o.orderId))}
+            onToggleStatus={(o: OrderLog) => {
+              const statusOrder = ["Processing", "Completed", "Delivered", "Cancelled"];
+              const currentIdx = statusOrder.indexOf(o.status);
+              const nextStatus = currentIdx >= 0 ? statusOrder[(currentIdx + 1) % statusOrder.length] : "Processing";
+              setOrders(orders.map((item) => (item.orderId === o.orderId ? { ...item, status: nextStatus } : item)));
+            }}
           />
         )}
         {active === "reviews" && (
@@ -864,11 +870,11 @@ export default function AdminPanel() {
             }
           />
         )}
-        {active === "classes" && (
+        {(active === "programs" || active === "classes") && (
           <OperationsTable
             title="Programs"
             headers={["Program Name", "Tag", "Trainer", "Weekly Times", "Full Schedule", "Capacity"]}
-            rows={filteredClasses.map((c) => [
+            rows={filteredPrograms.map((c) => [
               c.className,
               c.tag || "—",
               c.trainer,
@@ -878,18 +884,19 @@ export default function AdminPanel() {
                 .join(" | ") || "Not set",
               c.capacity,
             ])}
-            items={filteredClasses}
+            items={filteredPrograms}
             actionLabel="Add Program"
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(c: ClassSchedule) => handleSoftDelete(c, "classes", "Program Class", "id", "className", () => {
-              setClasses(
-                classes.filter(
+            onDelete={(c: ClassSchedule) => handleSoftDelete(c, "programs", "Program", "id", "className", () => {
+              setPrograms(
+                programs.filter(
                   (item) =>
                     !(
-                      item.className === c.className &&
+                      (item.id && c.id && item.id === c.id) ||
+                      (item.className === c.className &&
                       item.trainer === c.trainer &&
-                      item.time === c.time
+                      item.time === c.time)
                     )
                 )
               );
@@ -1101,20 +1108,22 @@ export default function AdminPanel() {
                 } else {
                   setAttendance([attendancePayload, ...attendance]);
                 }
-              } else if (active === "classes") {
-                const classPayload = payload as unknown as ClassSchedule;
+              } else if (active === "programs" || active === "classes") {
+                const programPayload = payload as unknown as ClassSchedule;
                 if (modalType === "edit") {
-                  setClasses(
-                    classes.map((c) =>
-                      c.className === currentItem.className &&
+                  setPrograms(
+                    programs.map((c) =>
+                      (c.id && currentItem.id && c.id === currentItem.id) ||
+                      (c.className === currentItem.className &&
                       c.trainer === currentItem.trainer &&
-                      c.time === currentItem.time
-                        ? classPayload
+                      c.time === currentItem.time)
+                        ? { ...programPayload, id: currentItem.id || c.id }
                         : c
                     )
                   );
                 } else {
-                  setClasses([classPayload, ...classes]);
+                  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                  setPrograms([{ ...programPayload, id: tempId }, ...programs]);
                 }
               } else if (active === "bookings") {
                 const bookingPayload = payload as unknown as Booking;
@@ -3633,7 +3642,7 @@ function ModalForm({
     if (section === "attendance") {
       return { member: "", plan: "Premium", status: "Checked In", time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }) };
     }
-    if (section === "classes") {
+    if (section === "programs" || section === "classes") {
       return { 
         className: "", 
         trainer: "", 
@@ -3813,7 +3822,7 @@ function ModalForm({
       payload.order = Number(payload.order ?? 0);
     }
 
-    if ((section === "gallery" || section === "classes" || section === "shop" || section === "brands" || section === "shopCategories" || section === "banners") && (payload.image || payload.logo || payload.banner)) {
+    if ((section === "gallery" || section === "programs" || section === "classes" || section === "shop" || section === "brands" || section === "shopCategories" || section === "banners") && (payload.image || payload.logo || payload.banner)) {
       setIsCompressing(true);
       try {
         for (const imageField of ["image", "logo", "banner"] as const) {
@@ -3858,7 +3867,7 @@ function ModalForm({
         <div className="adminModalHeader">
           <h2>
             {type === "edit" ? "Edit" : "Add New"}{" "}
-            {section === "classes" ? "Program" : (section === "bookings" ? "Booking" : (section === "gallery" ? "Photo" : (section === "trainers" ? "Team Member" : (section.charAt(0).toUpperCase() + section.slice(1)))))}
+            {section === "programs" || section === "classes" ? "Program" : (section === "bookings" ? "Booking" : (section === "gallery" ? "Photo" : (section === "trainers" ? "Team Member" : (section.charAt(0).toUpperCase() + section.slice(1)))))}
           </h2>
           <button className="adminModalClose" onClick={onClose} aria-label="Close modal">
             <FaTimes />
@@ -4499,7 +4508,7 @@ function ModalForm({
               </>
             )}
 
-            {section === "classes" && (
+            {(section === "programs" || section === "classes") && (
               <>
                 <div className="adminFormGroup">
                   <label>Program Name</label>

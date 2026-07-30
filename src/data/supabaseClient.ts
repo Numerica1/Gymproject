@@ -170,6 +170,8 @@ interface SupabaseOrder {
   items?: string;
   total_amount: number;
   payment_label?: string;
+  payment_method?: string;
+  phone?: string;
   status: string;
   email?: string;
   pickup_point?: string;
@@ -347,6 +349,7 @@ type GymOfferPayload = SourcePayload & Partial<{
 }>;
 
 type GymOrderPayload = SourcePayload & Partial<{
+  id: string;
   orderId: string;
   customer: string;
   items: string;
@@ -354,8 +357,10 @@ type GymOrderPayload = SourcePayload & Partial<{
   payment: string;
   status: string;
   email: string;
+  phone: string;
   pickupPoint: string;
   address: string;
+  paymentMethod: string;
 }>;
 
 type GymReviewPayload = SourcePayload & Partial<{
@@ -410,62 +415,145 @@ type GymShopCategoryPayload = SourcePayload & Partial<{
 
 // Generic Supabase API functions
 async function supabaseGet<T>(table: string, params?: Record<string, string>): Promise<T[]> {
-  // Build URL string manually to avoid new URL() throwing on relative paths in browser/Node
   const queryParts = Object.entries(params || {}).map(
     ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`
   );
   const query = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
-  const response = await fetch(`${SUPABASE_API_URL}/${table}${query}`);
+  const url = `${SUPABASE_API_URL}/${table}${query}`;
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to fetch from ${table}`);
+    const text = await response.text().catch(() => "");
+    console.error(`[Supabase Error] GET ${url} failed`, {
+      statusCode: response.status,
+      statusText: response.statusText,
+      url,
+      responseBody: text,
+    });
+    throw new Error(`Failed to fetch from ${table}: HTTP ${response.status} - ${text || response.statusText}`);
   }
   return response.json();
 }
 
 async function supabasePost<T>(table: string, data: T): Promise<T> {
-  const response = await fetch(`${SUPABASE_API_URL}/${table}`, {
+  const url = `${SUPABASE_API_URL}/${table}`;
+  console.log(`[Supabase Request] POST ${url}`, {
+    requestUrl: url,
+    table,
+    requestPayload: data,
+  });
+
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to create in ${table}`);
+    let responseBody = "";
+    let supabaseError: unknown = null;
+    try {
+      responseBody = await response.text();
+      supabaseError = JSON.parse(responseBody);
+    } catch {
+      // Body not JSON
+    }
+
+    console.error(`[Supabase Error] POST ${url} failed`, {
+      statusCode: response.status,
+      statusText: response.statusText,
+      responseBody,
+      supabaseError,
+      requestPayload: data,
+      requestUrl: url,
+    });
+
+    const errorMsg =
+      typeof supabaseError === "object" && supabaseError && "error" in supabaseError
+        ? String((supabaseError as { error: unknown }).error)
+        : typeof supabaseError === "object" && supabaseError && "message" in supabaseError
+        ? String((supabaseError as { message: unknown }).message)
+        : responseBody || `HTTP ${response.status} ${response.statusText}`;
+
+    throw new Error(`Failed to create in ${table}: ${errorMsg}`);
   }
   return response.json();
 }
 
 async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): Promise<T> {
-  const response = await fetch(`${SUPABASE_API_URL}/${table}?id=${id}`, {
+  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}`;
+  console.log(`[Supabase Request] PUT ${url}`, {
+    requestUrl: url,
+    table,
+    id,
+    requestPayload: data,
+  });
+
+  const response = await fetch(url, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to update in ${table}`);
+    let responseBody = "";
+    let supabaseError: unknown = null;
+    try {
+      responseBody = await response.text();
+      supabaseError = JSON.parse(responseBody);
+    } catch {
+      // Body not JSON
+    }
+
+    console.error(`[Supabase Error] PUT ${url} failed`, {
+      statusCode: response.status,
+      statusText: response.statusText,
+      responseBody,
+      supabaseError,
+      requestPayload: data,
+      requestUrl: url,
+    });
+
+    const errorMsg =
+      typeof supabaseError === "object" && supabaseError && "error" in supabaseError
+        ? String((supabaseError as { error: unknown }).error)
+        : responseBody || `HTTP ${response.status} ${response.statusText}`;
+
+    throw new Error(`Failed to update in ${table}: ${errorMsg}`);
   }
   return response.json();
 }
 
 async function supabaseDelete(table: string, id: string): Promise<void> {
-  const response = await fetch(`${SUPABASE_API_URL}/${table}?id=${id}`, {
+  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}`;
+  const response = await fetch(url, {
     method: "DELETE",
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to delete from ${table}`);
+    const text = await response.text().catch(() => "");
+    console.error(`[Supabase Error] DELETE ${url} failed`, {
+      statusCode: response.status,
+      responseBody: text,
+      requestUrl: url,
+    });
+    throw new Error(`Failed to delete from ${table}: HTTP ${response.status} - ${text}`);
   }
 }
 
 /** Soft-delete: sets is_deleted=true, deleted_at=now() */
 async function supabaseSoftDelete(table: string, id: string): Promise<void> {
-  const response = await fetch(`${SUPABASE_API_URL}/${table}?id=${id}`, {
+  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}`;
+  const response = await fetch(url, {
     method: "DELETE",
-    // The DELETE route will soft-delete for supported tables
   });
   if (!response.ok) {
-    throw new Error(`Failed to soft-delete from ${table}`);
+    const text = await response.text().catch(() => "");
+    console.error(`[Supabase Error] Soft Delete ${url} failed`, {
+      statusCode: response.status,
+      responseBody: text,
+      requestUrl: url,
+    });
+    throw new Error(`Failed to soft-delete from ${table}: HTTP ${response.status} - ${text}`);
   }
 }
 
@@ -476,11 +564,18 @@ async function supabaseRestore<T>(table: string, id: string): Promise<T> {
 
 /** Permanently delete (bypasses soft-delete) */
 async function supabasePermanentDelete(table: string, id: string): Promise<void> {
-  const response = await fetch(`${SUPABASE_API_URL}/${table}?id=${id}&permanent=true`, {
+  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}&permanent=true`;
+  const response = await fetch(url, {
     method: "DELETE",
   });
   if (!response.ok) {
-    throw new Error(`Failed to permanently delete from ${table}`);
+    const text = await response.text().catch(() => "");
+    console.error(`[Supabase Error] Permanent Delete ${url} failed`, {
+      statusCode: response.status,
+      responseBody: text,
+      requestUrl: url,
+    });
+    throw new Error(`Failed to permanently delete from ${table}: HTTP ${response.status} - ${text}`);
   }
 }
 
@@ -767,6 +862,8 @@ function toSupabaseOrder(order: GymOrderPayload): SupabaseInsert<SupabaseOrder> 
     items: order.items,
     total_amount: parseFloat((order.total || "").replace(/[^\d.]/g, "")) || 0,
     payment_label: order.payment,
+    payment_method: order.paymentMethod,
+    phone: order.phone,
     status: order.status,
     email: order.email,
     pickup_point: order.pickupPoint,
@@ -776,27 +873,43 @@ function toSupabaseOrder(order: GymOrderPayload): SupabaseInsert<SupabaseOrder> 
 }
 
 function fromSupabaseOrder(supabaseOrder: SupabaseOrder): SourcePayload {
+  const source = isSourcePayload(supabaseOrder.source_payload)
+    ? supabaseOrder.source_payload
+    : {};
   return {
-    orderId: supabaseOrder.order_number,
-    customer: supabaseOrder.customer_name,
-    items: supabaseOrder.items,
-    total: `Rs ${supabaseOrder.total_amount}`,
-    payment: supabaseOrder.payment_label,
-    status: supabaseOrder.status,
-    email: supabaseOrder.email,
-    pickupPoint: supabaseOrder.pickup_point,
-    address: supabaseOrder.address,
-    date: new Date(supabaseOrder.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }),
+    ...source,
+    id: supabaseOrder.id,
+    orderId: supabaseOrder.order_number || (source.orderId as string) || `#${supabaseOrder.id}`,
+    customer: supabaseOrder.customer_name || (source.customer as string) || "Customer",
+    items: supabaseOrder.items || (source.items as string) || "Gym shop order",
+    total: supabaseOrder.total_amount ? `Rs ${supabaseOrder.total_amount}` : ((source.total as string) || "Rs 0"),
+    payment: supabaseOrder.payment_label || (source.payment as string) || "Pending",
+    paymentMethod: supabaseOrder.payment_method || (source.paymentMethod as string) || "Cash on Pickup / Delivery",
+    phone: supabaseOrder.phone || (source.phone as string) || "",
+    status: supabaseOrder.status || (source.status as string) || "Processing",
+    email: supabaseOrder.email || (source.email as string) || "",
+    pickupPoint: supabaseOrder.pickup_point || (source.pickupPoint as string) || "",
+    address: supabaseOrder.address || (source.address as string) || "",
+    date: (source.date as string) || (supabaseOrder.created_at ? new Date(supabaseOrder.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) : new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })),
   };
+}
+
+function parseStarRating(rating: unknown): number {
+  if (typeof rating === "number") return Math.min(5, Math.max(1, Math.round(rating)));
+  if (!rating) return 5;
+  const str = String(rating).trim();
+  if (str.includes("★")) return Math.min(5, Math.max(1, str.length));
+  const num = parseFloat(str);
+  return isNaN(num) ? 5 : Math.min(5, Math.max(1, Math.round(num)));
 }
 
 function toSupabaseReview(review: GymReviewPayload): SupabaseInsert<SupabaseReview> {
   return {
     customer_name: review.customer,
     product_name: review.product,
-    rating: review.rating?.length, // Count stars
+    rating: parseStarRating(review.rating),
     comment: review.reviewText,
-    status: review.status,
+    status: review.status || "Approved",
     review_key: `${review.customer}-${review.product}`.toLowerCase().replace(/\s+/g, "-"),
     source_payload: review,
   };
@@ -807,7 +920,7 @@ function fromSupabaseReview(supabaseReview: SupabaseReview): SourcePayload {
     id: supabaseReview.id,
     customer: supabaseReview.customer_name,
     product: supabaseReview.product_name,
-    rating: "★".repeat(supabaseReview.rating),
+    rating: String(supabaseReview.rating || 5),
     reviewText: supabaseReview.comment,
     status: supabaseReview.status,
     date: new Date(supabaseReview.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }),
@@ -943,15 +1056,17 @@ export const supabaseMemberships = {
   permanentDelete: (id: string) => supabasePermanentDelete("memberships", id),
 };
 
-export const supabaseClasses = {
-  get: () => supabaseGet<SupabaseClass>("classes").then(data => data.map(fromSupabaseClass)),
-  create: (classSchedule: Record<string, unknown>) => supabasePost("classes", toSupabaseClass(classSchedule)),
-  update: (id: string, classSchedule: Record<string, unknown>) => supabaseUpdate("classes", id, toSupabaseClass(classSchedule)),
-  delete: (id: string) => supabaseDelete("classes", id),
-  softDelete: (id: string) => supabaseSoftDelete("classes", id),
-  restore: (id: string) => supabaseRestore("classes", id),
-  permanentDelete: (id: string) => supabasePermanentDelete("classes", id),
+export const supabasePrograms = {
+  get: () => supabaseGet<SupabaseClass>("programs").then(data => data.map(fromSupabaseClass)),
+  create: (classSchedule: Record<string, unknown>) => supabasePost("programs", toSupabaseClass(classSchedule)),
+  update: (id: string, classSchedule: Record<string, unknown>) => supabaseUpdate("programs", id, toSupabaseClass(classSchedule)),
+  delete: (id: string) => supabaseDelete("programs", id),
+  softDelete: (id: string) => supabaseSoftDelete("programs", id),
+  restore: (id: string) => supabaseRestore("programs", id),
+  permanentDelete: (id: string) => supabasePermanentDelete("programs", id),
 };
+
+export const supabaseClasses = supabasePrograms;
 
 export const supabaseProducts = {
   get: () => supabaseGet<SupabaseProduct>("products").then(data => data.map(fromSupabaseProduct)),
@@ -985,8 +1100,32 @@ export const supabaseOffers = {
 
 export const supabaseOrders = {
   get: () => supabaseGet<SupabaseOrder>("orders").then(data => data.map(fromSupabaseOrder)),
-  create: (order: Record<string, unknown>) => supabasePost("orders", toSupabaseOrder(order)),
-  update: (id: string, order: Record<string, unknown>) => supabaseUpdate("orders", id, toSupabaseOrder(order)),
+  create: (order: Record<string, unknown>) =>
+    supabasePost("orders", toSupabaseOrder(order)).catch((err) => {
+      console.warn("[supabaseOrders.create] Full payload failed, retrying with core columns:", err);
+      const basicPayload = {
+        order_number: (order.orderId as string) || (order.id as string),
+        customer_name: (order.customer as string) || "Customer",
+        items: (order.items as string) || "",
+        total_amount: parseFloat(String(order.total || "").replace(/[^\d.]/g, "")) || 0,
+        payment_label: (order.payment as string) || "Pending",
+        status: (order.status as string) || "Processing",
+      };
+      return supabasePost("orders", basicPayload);
+    }),
+  update: (id: string, order: Record<string, unknown>) =>
+    supabaseUpdate("orders", id, toSupabaseOrder(order)).catch((err) => {
+      console.warn("[supabaseOrders.update] Full payload failed, retrying with core columns:", err);
+      const basicPayload = {
+        order_number: (order.orderId as string) || (order.id as string),
+        customer_name: (order.customer as string) || "Customer",
+        items: (order.items as string) || "",
+        total_amount: parseFloat(String(order.total || "").replace(/[^\d.]/g, "")) || 0,
+        payment_label: (order.payment as string) || "Pending",
+        status: (order.status as string) || "Processing",
+      };
+      return supabaseUpdate("orders", id, basicPayload);
+    }),
   delete: (id: string) => supabaseDelete("orders", id),
 };
 

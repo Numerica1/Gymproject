@@ -26,6 +26,7 @@ const TRASH_MODULES: TrashModule[] = [
   { tableName: "brands",          module: "Brands",        nameColumn: "name" },
   { tableName: "shop_categories", module: "Categories",    nameColumn: "label" },
   { tableName: "trainers",        module: "Trainers",      nameColumn: "name" },
+  { tableName: "programs",        module: "Programs",      nameColumn: "title" },
   { tableName: "classes",         module: "Programs",      nameColumn: "title" },
   { tableName: "memberships",     module: "Memberships",   nameColumn: "name" },
   { tableName: "reviews",         module: "Reviews",       nameColumn: "customer_name" },

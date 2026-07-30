@@ -26,6 +26,7 @@ import {
   useGymShopCategories,
   useGymSettings,
   useGymClients,
+  useGymReviews,
   getNextClientId,
   type Product,
 } from "../data/gymData";
@@ -67,6 +68,7 @@ export default function ShopClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [products] = useGymProducts();
+  const [reviews] = useGymReviews();
   const [brands] = useGymBrands();
   const [shopCategories] = useGymShopCategories();
   const carouselRef = useRef<HTMLDivElement>(null);
@@ -265,7 +267,7 @@ export default function ShopClient() {
     // If brand doesn't exist at all, still show the product (brand may not be loaded yet)
     return !brandExists || activeBrands.some((b) => b.key === product.brandKey);
   });
-  const pageSize = 6;
+  const pageSize = 16;
 
   useEffect(() => {
     const storedCart = window.localStorage.getItem(SHOP_CART_STORAGE_KEY);
@@ -368,20 +370,33 @@ export default function ShopClient() {
 
   const flavors = Array.from(new Set(activeProducts.map((product) => product.flavor).filter(Boolean)));
 
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (searchQuery.trim() && productsRef.current) {
+      productsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   const filteredProducts = activeProducts.filter((product) => {
     const query = searchQuery.trim().toLowerCase();
     const stock = Number(product.stock) || 0;
     const price = getNumericPrice(product);
-    const searchable = [
-      product.name,
-      getBrandName(product),
-      product.category,
-      product.flavor,
-      product.size,
-    ].join(" ").toLowerCase();
+
+    if (query) {
+      const terms = query.split(/\s+/).filter(Boolean);
+      const brandName = getBrandName(product).toLowerCase();
+      const productName = (product.name || "").toLowerCase();
+      const category = (product.category || "").toLowerCase();
+      const flavor = (product.flavor || "").toLowerCase();
+      const size = (product.size || "").toLowerCase();
+      const description = (product.description || "").toLowerCase();
+      const searchable = `${productName} ${brandName} ${product.brandKey || ""} ${category} ${flavor} ${size} ${description}`;
+
+      const matchesSearch = terms.every((term) => searchable.includes(term));
+      if (!matchesSearch) return false;
+    }
 
     if (selectedBrand !== "all" && product.brandKey !== selectedBrand) return false;
-    if (query && !searchable.includes(query)) return false;
     if (categoryFilter !== "all" && product.category !== categoryFilter) return false;
     if (flavorFilter !== "all" && product.flavor !== flavorFilter) return false;
     if (stockFilter === "in-stock" && stock <= 0) return false;
@@ -398,6 +413,13 @@ export default function ShopClient() {
   useEffect(() => {
     setPage(1);
   }, [selectedBrand, searchQuery, categoryFilter, priceFilter, flavorFilter, stockFilter]);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setTimeout(() => {
+      productsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 60);
+  };
   // Sort categories by order field
   const sortedCategories = [...shopCategories].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
@@ -519,21 +541,41 @@ export default function ShopClient() {
           >
             <FaChevronLeft />
           </button>
-          <a className="shopLogo" href="/shop" aria-label="FitnessHealth home">
+          <Link className="shopLogo" href="/shop" aria-label="FitnessHealth home">
             <span>FITNESS</span>
             <strong>Health</strong>
-          </a>
+          </Link>
 
-          <label className="shopSearchBar">
+          <form className="shopSearchBar" onSubmit={handleSearchSubmit} role="search">
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search for products"
+              placeholder="Search products, brands..."
+              aria-label="Search products and brands"
             />
-            <button type="button" aria-label="Search products">
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#a1a1aa",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 6px",
+                  fontSize: "14px",
+                }}
+              >
+                <FaXmark />
+              </button>
+            )}
+            <button type="submit" aria-label="Search products">
               <FaMagnifyingGlass />
             </button>
-          </label>
+          </form>
 
           <div className="shopHeaderActions">
             {loggedInClient ? (
@@ -856,12 +898,38 @@ export default function ShopClient() {
             const outOfStock = stock <= 0;
             const isWishlisted = wishlist.includes(getProductId(product));
 
+            // Calculate product average rating from reviews
+            const prodReviews = reviews.filter((r) => {
+              if (!r.product) return false;
+              const pName = product.name.toLowerCase();
+              const rName = r.product.toLowerCase();
+              return rName === pName || (product.id && rName === product.id.toLowerCase());
+            });
+
+            let avgRatingNum = parseFloat(product.rating || "4.5") || 4.5;
+            if (prodReviews.length > 0) {
+              const sum = prodReviews.reduce((acc, r) => {
+                let num = 5;
+                if (r.rating) {
+                  if (r.rating.includes("★")) num = r.rating.length;
+                  else {
+                    const p = parseFloat(r.rating);
+                    if (!isNaN(p)) num = p;
+                  }
+                }
+                return acc + num;
+              }, 0);
+              avgRatingNum = sum / prodReviews.length;
+            }
+            const formattedRating = avgRatingNum.toFixed(1);
+            const productDetailUrl = `/shop/${encodeURIComponent(getProductId(product))}`;
+
             return (
               <article className="shopProductCard" key={getProductId(product)}>
                 <div className="shopProductHoverActions">
                   <button
                     type="button"
-                    onClick={() => setDetailProduct(product)}
+                    onClick={() => router.push(productDetailUrl)}
                     aria-label={`View details for ${product.name}`}
                     title="View details"
                   >
@@ -878,20 +946,42 @@ export default function ShopClient() {
                     <FaHeart />
                   </button>
                 </div>
-                <Image src={getProductImage(product, index)} alt={product.name} width={350} height={250} style={{ objectFit: "cover" }} unoptimized />
+
+                <Link href={productDetailUrl} className="shopProductImageLink">
+                  <Image
+                    src={getProductImage(product, index)}
+                    alt={product.name}
+                    width={350}
+                    height={200}
+                    style={{ objectFit: "contain", width: "100%", height: "100%" }}
+                    unoptimized
+                  />
+                </Link>
+
                 <div className="shopProductBody">
-                  <span>{product.category}</span>
-                  <h2>{product.name}</h2>
-                  <p>{product.description || "Ready for pickup at the gym reception desk."}</p>
+                  <div className="shopProductHeaderRow">
+                    <span className="shopProductCategory">{product.category}</span>
+                    <div className="shopProductStarBadge" title={`${formattedRating} rating (${prodReviews.length} reviews)`}>
+                      <FaStar className="starIcon" />
+                      <strong>{formattedRating}</strong>
+                      {prodReviews.length > 0 && <small>({prodReviews.length})</small>}
+                    </div>
+                  </div>
+
+                  <h2 className="shopProductTitle">
+                    <Link href={productDetailUrl}>{product.name}</Link>
+                  </h2>
+
                   <dl className="shopProductSpecs">
                     <div><dt>Flavor</dt><dd>{product.flavor || "Original"}</dd></div>
                     <div><dt>Size</dt><dd>{product.size || "Standard"}</dd></div>
-                    <div><dt>Rating</dt><dd><FaStar /> {product.rating || "4.5"}</dd></div>
                   </dl>
+
                   <div className="shopProductMeta">
                     <strong>{formatCurrency(product.price)}</strong>
                     <small className={outOfStock ? "out" : "in"}>{outOfStock ? "Out of stock" : `${stock} in stock`}</small>
                   </div>
+
                   {quantity > 0 ? (
                     <div className="shopStepper" aria-label={`${product.name} quantity`}>
                       <button
@@ -938,11 +1028,42 @@ export default function ShopClient() {
       </div>
 
       <div className="shopPagination" aria-label="Product pagination">
-        <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page === 1}>
-          <FaChevronLeft /> Previous
+        <button type="button" onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page === 1}>
+          <FaChevronLeft /> Prev
         </button>
-        <span>Page {page} of {totalPages}</span>
-        <button type="button" onClick={() => setPage((value) => Math.min(totalPages, value + 1))} disabled={page === totalPages}>
+        <div className="shopPageNumbers">
+          {(() => {
+            const pages: (number | "…")[] = [];
+            if (totalPages <= 7) {
+              for (let i = 1; i <= totalPages; i++) pages.push(i);
+            } else {
+              pages.push(1);
+              if (page > 3) pages.push("…");
+              const start = Math.max(2, page - 1);
+              const end = Math.min(totalPages - 1, page + 1);
+              for (let i = start; i <= end; i++) pages.push(i);
+              if (page < totalPages - 2) pages.push("…");
+              pages.push(totalPages);
+            }
+            return pages.map((p, i) =>
+              p === "…" ? (
+                <span key={`ellipsis-${i}`} className="shopPageEllipsis">…</span>
+              ) : (
+                <button
+                  key={p}
+                  type="button"
+                  className={p === page ? "shopPageBtn active" : "shopPageBtn"}
+                  onClick={() => handlePageChange(p as number)}
+                  aria-current={p === page ? "page" : undefined}
+                  aria-label={`Page ${p}`}
+                >
+                  {p}
+                </button>
+              )
+            );
+          })()}
+        </div>
+        <button type="button" onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page === totalPages}>
           Next <FaChevronRight />
         </button>
       </div>
@@ -953,7 +1074,14 @@ export default function ShopClient() {
             <button type="button" className="shopDetailClose" onClick={() => setDetailProduct(null)} aria-label="Close product details">
               <FaXmark />
             </button>
-            <Image src={getProductImage(detailProduct, 0)} alt={detailProduct.name} width={420} height={280} unoptimized />
+            <Image
+              src={getProductImage(detailProduct, 0)}
+              alt={detailProduct.name}
+              width={420}
+              height={280}
+              style={{ objectFit: "contain", width: "100%", height: "100%", maxHeight: "320px", background: "#f8fafc", padding: "12px", borderRadius: "8px" }}
+              unoptimized
+            />
             <div>
               <span>{detailProduct.category}</span>
               <h2>{detailProduct.name}</h2>
@@ -992,7 +1120,7 @@ export default function ShopClient() {
               <div className="shopWishlistItems">
                 {wishlistProducts.map((product, index) => (
                   <article className="shopWishlistItem" key={getProductId(product)}>
-                    <Image src={getProductImage(product, index)} alt={product.name} width={84} height={70} unoptimized />
+                    <Image src={getProductImage(product, index)} alt={product.name} width={84} height={70} style={{ objectFit: "contain", background: "#f8fafc", padding: "4px", borderRadius: "6px" }} unoptimized />
                     <div>
                       <strong>{product.name}</strong>
                       <span>{formatCurrency(product.price)}</span>

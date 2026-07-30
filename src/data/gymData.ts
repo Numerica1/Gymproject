@@ -10,7 +10,7 @@ export type { BlogPost };
 import {
   supabaseClients,
   supabaseTrainers,
-  supabaseClasses,
+  supabasePrograms,
   supabaseProducts,
   supabaseBrands,
   supabaseOffers,
@@ -38,6 +38,7 @@ export const GYM_OFFERS_KEY = "fitness-bhaktapur-offers-list";
 export const GYM_ORDERS_KEY = "fitness-bhaktapur-orders-list";
 export const GYM_REVIEWS_KEY = "fitness-bhaktapur-reviews-list";
 export const GYM_ATTENDANCE_KEY = "fitness-bhaktapur-attendance-list";
+export const GYM_PROGRAMS_KEY = "fitness-bhaktapur-programs-list";
 export const GYM_CLASSES_KEY = "fitness-bhaktapur-classes-list";
 export const GYM_BOOKINGS_KEY = "fitness-bhaktapur-bookings-list";
 export const GYM_GALLERY_KEY = "fitness-bhaktapur-gallery-list";
@@ -469,7 +470,13 @@ const defaultOffers: Offer[] = [];
 
 const defaultOrders: OrderLog[] = [];
 
-const defaultReviews: Review[] = [];
+const defaultReviews: Review[] = [
+  { id: "rev-1", customer: "Aarav Sharma", product: "Optimum Nutrition Gold Standard 100% Whey", rating: "5", reviewText: "Extremely good quality whey! Mixes super well with milk and water, no clumps at all.", date: "15 Jul 2026", status: "Approved" },
+  { id: "rev-2", customer: "Sujata Thapa", product: "Optimum Nutrition Gold Standard 100% Whey", rating: "5", reviewText: "Tastes fantastic and helped tremendously with post-workout muscle recovery.", date: "18 Jul 2026", status: "Approved" },
+  { id: "rev-3", customer: "Bikash Shrestha", product: "Muscletech Platinum 100% Creatine", rating: "5", reviewText: "Noticeable increase in bench and squat strength within 2 weeks of use. 10/10!", date: "10 Jul 2026", status: "Approved" },
+  { id: "rev-4", customer: "Pooja Karki", product: "Cellucor C4 Original Pre-Workout", rating: "4", reviewText: "Great energy boost for early morning heavy gym sessions.", date: "12 Jul 2026", status: "Approved" },
+  { id: "rev-5", customer: "Rohan Gurung", product: "Dymatize ISO 100 Whey Protein Hydrolyzate", rating: "5", reviewText: "Zero bloating, incredibly fast absorption, and tastes just like real chocolate fudge!", date: "20 Jul 2026", status: "Approved" },
+];
 
 const defaultAttendance: AttendanceLog[] = [];
 
@@ -559,8 +566,8 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
     } else if (key === GYM_TRAINERS_KEY) {
       const data = await supabaseTrainers.get();
       return data as T;
-    } else if (key === GYM_CLASSES_KEY) {
-      const data = await supabaseClasses.get();
+    } else if (key === GYM_PROGRAMS_KEY || key === GYM_CLASSES_KEY) {
+      const data = await supabasePrograms.get();
       return data as T;
     } else if (key === GYM_PRODUCTS_KEY) {
       const data = await supabaseProducts.get();
@@ -572,8 +579,11 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
       const data = await supabaseOffers.get();
       return data as T;
     } else if (key === GYM_ORDERS_KEY) {
-      const data = await supabaseOrders.get();
-      return data as T;
+      const data = await supabaseOrders.get().catch(() => []);
+      if (data && data.length > 0) {
+        return data as T;
+      }
+      // fall through to gym_data backup
     } else if (key === GYM_REVIEWS_KEY) {
       const data = await supabaseReviews.get();
       return data as T;
@@ -640,6 +650,29 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
     }
   }
 
+  if (key === GYM_ORDERS_KEY) {
+    if (Array.isArray(normalized) && normalized.length > 0) {
+      // Sync orders to dedicated table in background if needed
+      saveGymData(key, normalized).catch(() => {});
+      return normalized;
+    }
+
+    if (typeof window !== "undefined") {
+      const localStr = window.localStorage.getItem(GYM_ORDERS_KEY);
+      if (localStr) {
+        try {
+          const localOrders = JSON.parse(localStr) as OrderLog[];
+          if (Array.isArray(localOrders) && localOrders.length > 0) {
+            saveGymData(key, localOrders as unknown as T).catch(() => {});
+            return localOrders as unknown as T;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
   return normalized;
 }
 
@@ -696,16 +729,41 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
           return supabaseTrainers.create(trainer);
         })
       );
-    } else if (key === GYM_CLASSES_KEY && Array.isArray(value)) {
-      // Sync classes to Supabase
-      await Promise.all(
-        (value as WithId<ClassSchedule>[]).map((cls) => {
-          if (cls.id) {
-            return supabaseClasses.update(cls.id, cls).catch(() => supabaseClasses.create(cls));
+    } else if ((key === GYM_PROGRAMS_KEY || key === GYM_CLASSES_KEY) && Array.isArray(value)) {
+      // Sync programs to Supabase and patch back returned ids for new programs
+      const programsArr = value as WithId<ClassSchedule>[];
+      const updatedPrograms = await Promise.all(
+        programsArr.map(async (program, idx) => {
+          try {
+            const isNew = !program.id || program.id.startsWith("temp-");
+            if (!isNew) {
+              await supabasePrograms.update(program.id!, program as Record<string, unknown>).catch(() =>
+                supabasePrograms.create(program as Record<string, unknown>)
+              );
+              return program;
+            } else {
+              // Strip temp id before sending to Supabase
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { id: _tempId, ...programWithoutId } = program;
+              // Create and capture the returned record to get the auto-assigned id
+              const created = (await supabasePrograms.create(programWithoutId as Record<string, unknown>)) as unknown as WithId<ClassSchedule> | null;
+              if (created?.id) {
+                programsArr[idx] = { ...program, id: created.id };
+                return programsArr[idx];
+              }
+              return program;
+            }
+          } catch (err) {
+            console.error("[saveGymData] Error saving program to Supabase:", err);
+            return program;
           }
-          return supabaseClasses.create(cls);
         })
       );
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(GYM_PROGRAMS_KEY, JSON.stringify(updatedPrograms));
+        window.localStorage.setItem(GYM_CLASSES_KEY, JSON.stringify(updatedPrograms));
+      }
+      return updatedPrograms as unknown as T;
     } else if (key === GYM_PRODUCTS_KEY && Array.isArray(value)) {
       // Sync products to Supabase and patch back returned ids for new products
       const productsArr = value as WithId<Product>[];
@@ -761,15 +819,34 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
         })
       );
     } else if (key === GYM_ORDERS_KEY && Array.isArray(value)) {
-      // Sync orders to Supabase
-      await Promise.all(
-        (value as WithId<OrderLog>[]).map((order) => {
-          if (order.id) {
-            return supabaseOrders.update(order.id, order).catch(() => supabaseOrders.create(order));
+      // Sync orders to Supabase, patching back DB-assigned ids for new orders
+      const ordersArr = value as WithId<OrderLog>[];
+      const updatedOrders = await Promise.all(
+        ordersArr.map(async (order) => {
+          try {
+            if (order.id) {
+              await supabaseOrders.update(order.id, order as Record<string, unknown>).catch(() =>
+                supabaseOrders.create(order as Record<string, unknown>)
+              );
+              return order;
+            } else {
+              // New order — create and capture Supabase-assigned id
+              const created = await supabaseOrders.create(order as Record<string, unknown>) as unknown as WithId<OrderLog> | null;
+              if (created?.id) {
+                return { ...order, id: created.id };
+              }
+              return order;
+            }
+          } catch {
+            return order;
           }
-          return supabaseOrders.create(order);
         })
       );
+      // Persist id-enriched array back to localStorage so future syncs use update
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(GYM_ORDERS_KEY, JSON.stringify(updatedOrders));
+      }
+      value = updatedOrders as T;
     } else if (key === GYM_REVIEWS_KEY && Array.isArray(value)) {
       // Sync reviews to Supabase
       await Promise.all(
@@ -1097,8 +1174,12 @@ export function useGymAttendance() {
   return useGymState<AttendanceLog[]>(GYM_ATTENDANCE_KEY, defaultAttendance);
 }
 
+export function useGymPrograms() {
+  return useGymState<ClassSchedule[]>(GYM_PROGRAMS_KEY, defaultClasses);
+}
+
 export function useGymClasses() {
-  return useGymState<ClassSchedule[]>(GYM_CLASSES_KEY, defaultClasses);
+  return useGymPrograms();
 }
 
 export function useGymBookings() {
