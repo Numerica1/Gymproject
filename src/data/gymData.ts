@@ -262,7 +262,16 @@ export type Offer = {
   status: string;
 };
 
+export type OrderItemDetail = {
+  productName: string;
+  brand?: string;
+  quantity: number;
+  price?: string;
+  image?: string;
+};
+
 export type OrderLog = {
+  id?: string;
   orderId: string;
   customer: string;
   items?: string;
@@ -271,8 +280,11 @@ export type OrderLog = {
   status: string;
   date: string;
   email?: string;
+  phone?: string;
   pickupPoint?: string;
   address?: string;
+  paymentMethod?: string;
+  cartItems?: OrderItemDetail[];
 };
 
 export type Review = {
@@ -683,9 +695,23 @@ export async function saveGymData<T>(key: string, value: T): Promise<T> {
   // Try to save to Supabase tables for structured data
   try {
     if (key === GYM_CLIENTS_KEY && Array.isArray(value)) {
-      // Sync clients to Supabase
+      // Sync clients to Supabase — update/create kept clients, soft-delete removed ones
+      const newClients = value as WithId<DemoClient>[];
+      const newIdSet = new Set(newClients.map((c) => c.id).filter(Boolean));
+
+      // Fetch existing Supabase clients to detect deletions
+      const existingClients = await supabaseClients.get().catch(() => []) as WithId<DemoClient>[];
+
+      // Soft-delete clients that are no longer in the local list
       await Promise.all(
-        (value as WithId<DemoClient>[]).map((client) => {
+        existingClients
+          .filter((existing) => existing.id && !newIdSet.has(existing.id))
+          .map((removed) => supabaseClients.softDelete(removed.id!).catch(() => {}))
+      );
+
+      // Update/create the remaining clients
+      await Promise.all(
+        newClients.map((client) => {
           if (client.id) {
             return supabaseClients.update(client.id, client).catch(() => supabaseClients.create(client));
           }

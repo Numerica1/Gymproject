@@ -5,6 +5,8 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABA
 
 // Tables that support soft-delete (have is_deleted column)
 const SOFT_DELETE_TABLES = new Set([
+  "clients",
+  "orders",
   "products",
   "brands",
   "shop_categories",
@@ -97,37 +99,54 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const eq = searchParams.get("eq");
     const eqColumn = searchParams.get("eqColumn");
     const includeDeleted = searchParams.get("includeDeleted") === "true";
-    
-    let path = `${table}?select=${encodeURIComponent(select)}`;
-    
-    // Filter out soft-deleted records by default for supported tables
-    if (SOFT_DELETE_TABLES.has(table) && !includeDeleted) {
-      path += `&is_deleted=eq.false`;
-    }
 
-    if (eq && eqColumn) {
-      path += `&${encodeURIComponent(eqColumn)}=eq.${encodeURIComponent(eq)}`;
-    }
-    
-    if (orderBy) {
-      path += `&order=${encodeURIComponent(orderBy)}`;
-    }
-    
-    if (limit) {
-      path += `&limit=${limit}`;
-    }
-    
-    if (offset) {
-      path += `&offset=${offset}`;
-    }
+    const buildPath = (withSoftDelete: boolean) => {
+      let path = `${table}?select=${encodeURIComponent(select)}`;
 
-    const data = await supabaseRequest(path);
-    return NextResponse.json(data);
+      // Filter out soft-deleted records by default for supported tables
+      if (withSoftDelete && SOFT_DELETE_TABLES.has(table) && !includeDeleted) {
+        path += `&is_deleted=eq.false`;
+      }
+
+      if (eq && eqColumn) {
+        path += `&${encodeURIComponent(eqColumn)}=eq.${encodeURIComponent(eq)}`;
+      }
+
+      if (orderBy) {
+        path += `&order=${encodeURIComponent(orderBy)}`;
+      }
+
+      if (limit) {
+        path += `&limit=${limit}`;
+      }
+
+      if (offset) {
+        path += `&offset=${offset}`;
+      }
+
+      return path;
+    };
+
+    try {
+      const data = await supabaseRequest(buildPath(true));
+      return NextResponse.json(data);
+    } catch (error) {
+      // PostgreSQL error 42703 = column does not exist (migration not yet run)
+      // Fall back to fetching all rows without the is_deleted filter
+      const code = (error as { code?: string }).code;
+      if (code === "42703" || (error instanceof Error && error.message.includes("is_deleted"))) {
+        console.warn(`[API] Table "${table}" missing is_deleted column — run MIGRATION_SOFT_DELETE.sql. Falling back to unfiltered fetch.`);
+        const data = await supabaseRequest(buildPath(false));
+        return NextResponse.json(data);
+      }
+      throw error;
+    }
   } catch (error) {
     const status = (error as { status?: number }).status || 500;
     return jsonError(error instanceof Error ? error.message : "Could not load data.", status);
   }
 }
+
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ table: string }> }) {
   try {
@@ -187,18 +206,29 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     // For soft-delete tables: PATCH is_deleted=true unless permanent=true
     if (SOFT_DELETE_TABLES.has(table) && !permanent) {
-      const data = await supabaseRequest(`${table}?${idColumn}=eq.${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: { "Prefer": "return=representation" },
-        body: JSON.stringify({
-          is_deleted: true,
-          deleted_at: new Date().toISOString(),
-        }),
-      });
-      return NextResponse.json({ softDeleted: true, data: Array.isArray(data) ? data[0] : data });
+      try {
+        const data = await supabaseRequest(`${table}?${idColumn}=eq.${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Prefer": "return=representation" },
+          body: JSON.stringify({
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+          }),
+        });
+        return NextResponse.json({ softDeleted: true, data: Array.isArray(data) ? data[0] : data });
+      } catch (softDeleteError) {
+        // PostgreSQL 42703 = column does not exist — migration not yet run
+        // Fall through to hard delete so the operation still succeeds
+        const code = (softDeleteError as { code?: string }).code;
+        if (code === "42703" || (softDeleteError instanceof Error && softDeleteError.message.includes("is_deleted"))) {
+          console.warn(`[API] Table "${table}" missing is_deleted column — run MIGRATION_SOFT_DELETE.sql. Falling back to hard delete.`);
+        } else {
+          throw softDeleteError;
+        }
+      }
     }
 
-    // Hard delete (for tables without soft-delete, or permanent=true)
+    // Hard delete (for tables without soft-delete, permanent=true, or fallback)
     await supabaseRequest(`${table}?${idColumn}=eq.${encodeURIComponent(id)}`, {
       method: "DELETE",
     });

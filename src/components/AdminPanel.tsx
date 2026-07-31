@@ -31,6 +31,11 @@ import {
   FaSignOutAlt,
   FaEnvelope,
   FaTrash,
+  FaBox,
+  FaTruck,
+  FaPhone,
+  FaMapMarkerAlt,
+  FaEye,
 } from "react-icons/fa";
 import {
   useGymSettings,
@@ -195,9 +200,9 @@ const navGroups = [
 ];
 
 function Badge({ value, className }: { value: string; className?: string }) {
-  const tone = ["Active", "Paid", "Published", "Delivered", "Approved", "Checked In"].includes(value)
+  const tone = ["Active", "Paid", "Published", "Delivered", "Completed", "Approved", "Checked In"].includes(value)
     ? "good"
-    : ["Inactive", "Draft", "Expired", "Late"].includes(value)
+    : ["Inactive", "Draft", "Expired", "Cancelled", "Late"].includes(value)
     ? "bad"
     : "warn";
 
@@ -681,7 +686,9 @@ export default function AdminPanel() {
             trainers={trainers}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
-            onDelete={(id) => setClients(clients.filter((c) => c.id !== id))}
+            onDelete={(client) => handleSoftDelete(client, "clients", "Member", "id", "name", () => {
+              setClients(clients.filter((c) => c.id !== client.id));
+            })}
           />
         )}
 
@@ -823,17 +830,15 @@ export default function AdminPanel() {
           />
         )}
         {active === "orders" && (
-          <OperationsTable
-            title="Orders"
-            headers={["Order ID", "Customer", "Products", "Total", "Payment", "Status", "Date"]}
-            rows={filteredOrders.map((o) => [o.orderId, o.customer, o.items || "Gym shop order", formatCurrency(o.total), o.payment, o.status, o.date])}
-            items={filteredOrders}
-            actionLabel="Log Order"
+          <OrdersManagementTable
+            orders={filteredOrders}
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
-            onDelete={(o: OrderLog) => setOrders(orders.filter((item) => item.orderId !== o.orderId))}
+            onDelete={(o: OrderLog) => handleSoftDelete(o, "orders", "Order", "id", "orderId", () => {
+              setOrders(orders.filter((item) => item.orderId !== o.orderId));
+            })}
             onToggleStatus={(o: OrderLog) => {
-              const statusOrder = ["Processing", "Completed", "Delivered", "Cancelled"];
+              const statusOrder = ["Processing", "Shipped", "Delivered"];
               const currentIdx = statusOrder.indexOf(o.status);
               const nextStatus = currentIdx >= 0 ? statusOrder[(currentIdx + 1) % statusOrder.length] : "Processing";
               setOrders(orders.map((item) => (item.orderId === o.orderId ? { ...item, status: nextStatus } : item)));
@@ -2116,10 +2121,8 @@ function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
   trainers: Trainer[];
   onOpenAdd: () => void;
   onOpenEdit: (item: DemoClient) => void;
-  onDelete: (id: string) => void;
+  onDelete: (client: DemoClient) => void;
 }) {
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-
   const toggleStatus = (clientId: string) => {
     setClients(
       clients.map((c) => {
@@ -2158,7 +2161,7 @@ function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
           </thead>
           <tbody>
             {clients.map((c) => (
-              <tr key={c.id} style={pendingDeleteId === c.id ? { background: "rgba(248,113,113,0.06)" } : undefined}>
+              <tr key={c.id}>
                 <td>{c.id}</td>
                 <td><strong>{c.name}</strong></td>
                 <td>{c.email}</td>
@@ -2177,22 +2180,8 @@ function Clients({ clients, setClients, onOpenAdd, onOpenEdit, onDelete }: {
                 <td>{c.memberSince}</td>
                 <td>
                   <div className="adminTableActionRow">
-                    {pendingDeleteId === c.id ? (
-                      <>
-                        <span style={{ fontSize: "0.75rem", color: "#f87171", fontWeight: 700, whiteSpace: "nowrap" }}>Confirm?</span>
-                        <button className="adminActionBtn delete" onClick={() => { onDelete(c.id); setPendingDeleteId(null); }} aria-label="Confirm Delete" style={{ background: "rgba(248,113,113,0.25)", border: "1px solid #f87171" }}>
-                          <FaCheckCircle />
-                        </button>
-                        <button className="adminActionBtn edit" onClick={() => setPendingDeleteId(null)} aria-label="Cancel">
-                          <FaTimes />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button className="adminActionBtn edit" onClick={() => onOpenEdit(c)} aria-label="Edit Member"><FaEdit /></button>
-                        <button className="adminActionBtn delete" onClick={() => setPendingDeleteId(c.id)} aria-label="Delete Member"><FaTrashAlt /></button>
-                      </>
-                    )}
+                    <button className="adminActionBtn edit" onClick={() => onOpenEdit(c)} aria-label="Edit Member"><FaEdit /></button>
+                    <button className="adminActionBtn delete" onClick={() => onDelete(c)} aria-label="Delete Member"><FaTrashAlt /></button>
                   </div>
                 </td>
               </tr>
@@ -3353,6 +3342,406 @@ function Settings({
   );
 }
 
+type ParsedOrderItem = {
+  name: string;
+  quantity: number;
+  price?: string;
+  brand?: string;
+  image?: string;
+};
+
+function parseOrderItems(order: OrderLog): ParsedOrderItem[] {
+  if (order.cartItems && Array.isArray(order.cartItems) && order.cartItems.length > 0) {
+    return order.cartItems.map((item) => ({
+      name: item.productName || "Product",
+      quantity: item.quantity || 1,
+      price: item.price,
+      brand: item.brand,
+      image: item.image,
+    }));
+  }
+
+  if (!order.items) {
+    return [{ name: "Gym Shop Order", quantity: 1 }];
+  }
+
+  const rawParts = order.items.split(/,\s*/);
+  return rawParts.map((part) => {
+    const qtyMatch = part.match(/\s*(?:x|X|\*|\()?\s*(\d+)\s*\)?$/);
+    if (qtyMatch) {
+      const qty = parseInt(qtyMatch[1], 10);
+      const name = part.replace(/\s*(?:x|X|\*|\()?\s*\d+\s*\)?$/, "").trim();
+      return { name: name || part.trim(), quantity: isNaN(qty) ? 1 : qty };
+    }
+    return { name: part.trim(), quantity: 1 };
+  });
+}
+
+function DeliverySlipModal({
+  order,
+  onClose,
+  onToggleStatus,
+}: {
+  order: OrderLog;
+  onClose: () => void;
+  onToggleStatus: (order: OrderLog) => void;
+}) {
+  const parsedItems = parseOrderItems(order);
+  const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
+
+  const toggleCheck = (index: number) => {
+    setCheckedItems((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  return (
+    <div className="adminModalOverlay" onClick={onClose} style={{ zIndex: 1100 }}>
+      <div
+        className="adminModal"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: "680px", width: "94%" }}
+      >
+        <div className="adminModalHeader">
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <FaTruck style={{ color: "#ffe500", fontSize: "1.4rem" }} />
+            <div>
+              <h2 style={{ margin: 0, fontSize: "1.2rem", color: "#fff" }}>Order Delivery & Packing Slip</h2>
+              <span style={{ fontSize: "0.8rem", color: "#a1a1aa" }}>
+                Order {order.orderId} • Date: {order.date}
+              </span>
+            </div>
+          </div>
+          <button className="adminModalClose" onClick={onClose} aria-label="Close modal">
+            <FaTimes />
+          </button>
+        </div>
+
+        <div className="adminModalBody" style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Customer Info Card */}
+          <div style={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: "10px", padding: "16px" }}>
+            <h3 style={{ margin: "0 0 10px", fontSize: "0.85rem", color: "#ffe500", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+              Customer Contact & Destination
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px" }}>
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>Customer Name</div>
+                <div style={{ fontSize: "0.95rem", fontWeight: 700, color: "#fff" }}>{order.customer}</div>
+              </div>
+              {order.phone && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>Contact Phone</div>
+                  <a href={`tel:${order.phone}`} style={{ fontSize: "0.92rem", fontWeight: 700, color: "#34d399", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <FaPhone style={{ fontSize: "0.75rem" }} /> {order.phone}
+                  </a>
+                </div>
+              )}
+              {order.email && (
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>Email</div>
+                  <div style={{ fontSize: "0.85rem", color: "#d4d4d8" }}>{order.email}</div>
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>Payment & Total</div>
+                <div style={{ fontSize: "0.88rem", color: "#fbbf24", fontWeight: 700 }}>
+                  {order.paymentMethod || order.payment} • {formatCurrency(order.total)}
+                </div>
+              </div>
+            </div>
+
+            {(order.address || order.pickupPoint) && (
+              <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #27272a" }}>
+                <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>Delivery / Pickup Location</div>
+                <div style={{ fontSize: "0.9rem", color: "#fff", fontWeight: 600, display: "flex", alignItems: "center", gap: "6px", marginTop: "2px" }}>
+                  <FaMapMarkerAlt style={{ color: "#ef4444" }} />
+                  {order.address || order.pickupPoint}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Ordered Products Packing List */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+              <h3 style={{ margin: 0, fontSize: "0.85rem", color: "#ffe500", textTransform: "uppercase", letterSpacing: "0.05em", fontWeight: 700 }}>
+                Products to Pack ({parsedItems.length} item{parsedItems.length !== 1 ? "s" : ""})
+              </h3>
+              <span style={{ fontSize: "0.78rem", color: "#a1a1aa" }}>
+                Check off items as you pack for delivery
+              </span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {parsedItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => toggleCheck(idx)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: checkedItems[idx] ? "rgba(52, 211, 153, 0.08)" : "#18181b",
+                    border: checkedItems[idx] ? "1px solid #34d399" : "1px solid #3f3f46",
+                    borderRadius: "8px",
+                    padding: "10px 14px",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(checkedItems[idx])}
+                      onChange={() => {}}
+                      style={{ width: "18px", height: "18px", accentColor: "#34d399", cursor: "pointer" }}
+                    />
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "6px", background: "#27272a" }}
+                      />
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "42px", height: "42px", borderRadius: "6px", background: "#27272a", color: "#ffe500", fontSize: "18px" }}>
+                        <FaBox />
+                      </span>
+                    )}
+                    <div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 700, color: checkedItems[idx] ? "#34d399" : "#ffffff", textDecoration: checkedItems[idx] ? "line-through" : "none" }}>
+                        {item.name}
+                      </div>
+                      {item.brand && (
+                        <div style={{ fontSize: "0.78rem", color: "#a1a1aa" }}>Brand: {item.brand}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: "right" }}>
+                    <span style={{ display: "inline-block", padding: "4px 12px", background: "#ffe500", color: "#111", borderRadius: "14px", fontSize: "0.85rem", fontWeight: 800 }}>
+                      QTY: {item.quantity}
+                    </span>
+                    {item.price && (
+                      <div style={{ fontSize: "0.78rem", color: "#a1a1aa", marginTop: "2px" }}>
+                        Unit Price: {item.price}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Delivery Status & Control */}
+          <div style={{ background: "#18181b", border: "1px solid #3f3f46", borderRadius: "10px", padding: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>Fulfillment Status</div>
+              <div style={{ marginTop: "4px" }}>
+                <Badge value={order.status} />
+              </div>
+            </div>
+            <button
+              type="button"
+              className="adminPrimaryButton"
+              onClick={() => onToggleStatus(order)}
+              style={{ fontSize: "0.85rem", padding: "8px 16px" }}
+            >
+              Cycle Status ({order.status === "Processing" ? "Move to Shipped" : order.status === "Shipped" ? "Move to Delivered" : "Move to Processing"})
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrdersManagementTable({
+  orders,
+  onAdd,
+  onEdit,
+  onDelete,
+  onToggleStatus,
+}: {
+  orders: OrderLog[];
+  onAdd: () => void;
+  onEdit: (order: OrderLog) => void;
+  onDelete: (order: OrderLog) => void;
+  onToggleStatus: (order: OrderLog) => void;
+}) {
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState<OrderLog | null>(null);
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="Orders Management" action="Log Order" onAction={onAdd} />
+      
+      <div className="adminTableWrap" style={{ overflowX: "auto" }}>
+        <table className="adminTable">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer & Contact</th>
+              <th>Ordered Products (Details for Delivery)</th>
+              <th>Total & Payment</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((o) => {
+              const parsedItems = parseOrderItems(o);
+              const totalItemsCount = parsedItems.reduce((acc, item) => acc + item.quantity, 0);
+
+              return (
+                <tr key={o.orderId || o.id}>
+                  {/* Order ID */}
+                  <td style={{ verticalAlign: "top" }}>
+                    <span style={{ fontWeight: 800, color: "#ffe500", fontSize: "0.95rem" }}>{o.orderId}</span>
+                  </td>
+
+                  {/* Customer & Contact */}
+                  <td style={{ verticalAlign: "top", minWidth: "180px" }}>
+                    <strong style={{ color: "#fff", display: "block", fontSize: "0.95rem" }}>{o.customer}</strong>
+                    {o.phone && (
+                      <a href={`tel:${o.phone}`} style={{ fontSize: "0.82rem", color: "#34d399", display: "inline-flex", alignItems: "center", gap: "4px", marginTop: "2px", textDecoration: "none", fontWeight: 600 }}>
+                        <FaPhone style={{ fontSize: "0.75rem" }} /> {o.phone}
+                      </a>
+                    )}
+                    {o.email && (
+                      <div style={{ fontSize: "0.8rem", color: "#a1a1aa", marginTop: "2px" }}>
+                        {o.email}
+                      </div>
+                    )}
+                    {(o.address || o.pickupPoint) && (
+                      <div style={{ fontSize: "0.78rem", color: "#d4d4d8", marginTop: "4px", background: "#27272a", padding: "4px 8px", borderRadius: "4px", display: "flex", alignItems: "flex-start", gap: "4px" }}>
+                        <FaMapMarkerAlt style={{ color: "#ef4444", flexShrink: 0, marginTop: "2px" }} />
+                        <span>{o.address || o.pickupPoint}</span>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Detailed Ordered Products List */}
+                  <td style={{ verticalAlign: "top", minWidth: "280px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <div style={{ fontSize: "0.75rem", textTransform: "uppercase", color: "#a1a1aa", fontWeight: 700 }}>
+                        {totalItemsCount} item{totalItemsCount !== 1 ? "s" : ""} to pack:
+                      </div>
+                      {parsedItems.map((item, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            background: "#18181b",
+                            border: "1px solid #3f3f46",
+                            borderRadius: "6px",
+                            padding: "6px 10px",
+                            gap: "8px",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", background: "#27272a" }}
+                              />
+                            ) : (
+                              <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", borderRadius: "4px", background: "#27272a", color: "#ffe500", fontSize: "14px" }}>
+                                <FaBox />
+                              </span>
+                            )}
+                            <div>
+                              <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#ffffff" }}>
+                                {item.name}
+                              </div>
+                              {item.brand && (
+                                <div style={{ fontSize: "0.75rem", color: "#a1a1aa" }}>
+                                  {item.brand}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <span style={{ padding: "2px 8px", background: "#ffe500", color: "#111", borderRadius: "12px", fontSize: "0.75rem", fontWeight: 800 }}>
+                              x{item.quantity}
+                            </span>
+                            {item.price && (
+                              <span style={{ fontSize: "0.78rem", color: "#34d399", fontWeight: 600 }}>
+                                {item.price}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+
+                  {/* Total & Payment */}
+                  <td style={{ verticalAlign: "top" }}>
+                    <strong style={{ fontSize: "0.95rem", color: "#ffe500", display: "block" }}>
+                      {formatCurrency(o.total)}
+                    </strong>
+                    <span style={{ fontSize: "0.8rem", color: "#a1a1aa", display: "block", marginTop: "2px" }}>
+                      {o.paymentMethod || o.payment}
+                    </span>
+                  </td>
+
+                  {/* Status Toggle */}
+                  <td style={{ verticalAlign: "top" }}>
+                    <button
+                      type="button"
+                      className="adminInlineStatusToggle"
+                      onClick={() => onToggleStatus(o)}
+                      title="Click to cycle status"
+                    >
+                      <Badge value={o.status} />
+                    </button>
+                  </td>
+
+                  {/* Date */}
+                  <td style={{ verticalAlign: "top", fontSize: "0.85rem", color: "#a1a1aa" }}>
+                    {o.date}
+                  </td>
+
+                  {/* Actions */}
+                  <td style={{ verticalAlign: "top" }}>
+                    <div className="adminTableActionRow">
+                      <button
+                        className="adminActionBtn"
+                        onClick={() => setSelectedOrderDetails(o)}
+                        title="View Delivery Slip & Products Breakdown"
+                        style={{ color: "#38bdf8" }}
+                      >
+                        <FaEye />
+                      </button>
+                      <button className="adminActionBtn edit" onClick={() => onEdit(o)} title="Edit Order">
+                        <FaEdit />
+                      </button>
+                      <button className="adminActionBtn delete" onClick={() => onDelete(o)} title="Delete Order">
+                        <FaTrashAlt />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Delivery Slip & Packing Modal */}
+      {selectedOrderDetails && (
+        <DeliverySlipModal
+          order={selectedOrderDetails}
+          onClose={() => setSelectedOrderDetails(null)}
+          onToggleStatus={onToggleStatus}
+        />
+      )}
+    </div>
+  );
+}
+
 function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, onEdit, onDelete, onApprove, onToggleStatus }: {
   title: string;
   headers: string[];
@@ -3388,7 +3777,7 @@ function OperationsTable<T>({ title, headers, rows, items, actionLabel, onAdd, o
                 <tr key={stableKey}>
                   {row.map((cell, index) => (
                     <td key={`${stableKey}-${index}`}>
-                      {["Active", "Inactive", "Paid", "Pending", "Delivered", "Processing", "Shipped", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
+                      {["Active", "Inactive", "Paid", "Pending", "Processing", "Shipped", "Delivered", "Completed", "Cancelled", "Published", "Draft", "Approved", "Checked In", "Checked Out", "Late"].includes(cell) ? (
                         onToggleStatus && originalItem ? (
                           <button type="button" className="adminInlineStatusToggle" onClick={() => onToggleStatus(originalItem)} aria-label={`Change status from ${cell}`}>
                             <Badge value={cell} />

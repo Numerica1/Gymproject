@@ -20,6 +20,9 @@ interface SupabaseClient {
   package_status?: string;
   username?: string;
   source_payload?: unknown;
+  is_deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
   created_at: string;
 }
 
@@ -479,8 +482,17 @@ async function supabasePost<T>(table: string, data: T): Promise<T> {
   return response.json();
 }
 
+function buildIdQuery(table: string, id: string): string {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  if (table === "clients" && !isUuid) {
+    return `id=${encodeURIComponent(id)}&idColumn=client_code`;
+  }
+  return `id=${encodeURIComponent(id)}`;
+}
+
 async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): Promise<T> {
-  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}`;
+  const query = buildIdQuery(table, id);
+  const url = `${SUPABASE_API_URL}/${table}?${query}`;
   console.log(`[Supabase Request] PUT ${url}`, {
     requestUrl: url,
     table,
@@ -524,7 +536,8 @@ async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): P
 }
 
 async function supabaseDelete(table: string, id: string): Promise<void> {
-  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}`;
+  const query = buildIdQuery(table, id);
+  const url = `${SUPABASE_API_URL}/${table}?${query}`;
   const response = await fetch(url, {
     method: "DELETE",
   });
@@ -542,7 +555,8 @@ async function supabaseDelete(table: string, id: string): Promise<void> {
 
 /** Soft-delete: sets is_deleted=true, deleted_at=now() */
 async function supabaseSoftDelete(table: string, id: string): Promise<void> {
-  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}`;
+  const query = buildIdQuery(table, id);
+  const url = `${SUPABASE_API_URL}/${table}?${query}`;
   const response = await fetch(url, {
     method: "DELETE",
   });
@@ -564,7 +578,8 @@ async function supabaseRestore<T>(table: string, id: string): Promise<T> {
 
 /** Permanently delete (bypasses soft-delete) */
 async function supabasePermanentDelete(table: string, id: string): Promise<void> {
-  const url = `${SUPABASE_API_URL}/${table}?id=${encodeURIComponent(id)}&permanent=true`;
+  const query = buildIdQuery(table, id);
+  const url = `${SUPABASE_API_URL}/${table}?${query}&permanent=true`;
   const response = await fetch(url, {
     method: "DELETE",
   });
@@ -855,8 +870,16 @@ function fromSupabaseOffer(supabaseOffer: SupabaseOffer): SourcePayload {
   };
 }
 
+function isUuidString(val: unknown): boolean {
+  return typeof val === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+}
+
 function toSupabaseOrder(order: GymOrderPayload): SupabaseInsert<SupabaseOrder> {
+  const rawClientId = order.clientId || order.client_id;
+  const clientId = isUuidString(rawClientId) ? String(rawClientId) : undefined;
+
   return {
+    ...(clientId ? { client_id: clientId } : {}),
     order_number: order.orderId,
     customer_name: order.customer,
     items: order.items,
@@ -864,7 +887,7 @@ function toSupabaseOrder(order: GymOrderPayload): SupabaseInsert<SupabaseOrder> 
     payment_label: order.payment,
     payment_method: order.paymentMethod,
     phone: order.phone,
-    status: order.status,
+    status: order.status || "Processing",
     email: order.email,
     pickup_point: order.pickupPoint,
     address: order.address,
@@ -890,6 +913,7 @@ function fromSupabaseOrder(supabaseOrder: SupabaseOrder): SourcePayload {
     email: supabaseOrder.email || (source.email as string) || "",
     pickupPoint: supabaseOrder.pickup_point || (source.pickupPoint as string) || "",
     address: supabaseOrder.address || (source.address as string) || "",
+    cartItems: (source.cartItems as Record<string, unknown>[]) || undefined,
     date: (source.date as string) || (supabaseOrder.created_at ? new Date(supabaseOrder.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) : new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" })),
   };
 }
@@ -1024,6 +1048,9 @@ export const supabaseClients = {
   create: (client: Record<string, unknown>) => supabasePost("clients", toSupabaseClient(client)),
   update: (id: string, client: Record<string, unknown>) => supabaseUpdate("clients", id, toSupabaseClient(client)),
   delete: (id: string) => supabaseDelete("clients", id),
+  softDelete: (id: string) => supabaseSoftDelete("clients", id),
+  restore: (id: string) => supabaseRestore("clients", id),
+  permanentDelete: (id: string) => supabasePermanentDelete("clients", id),
 };
 
 export const supabaseTrainers = {
@@ -1127,6 +1154,9 @@ export const supabaseOrders = {
       return supabaseUpdate("orders", id, basicPayload);
     }),
   delete: (id: string) => supabaseDelete("orders", id),
+  softDelete: (id: string) => supabaseSoftDelete("orders", id),
+  restore: (id: string) => supabaseRestore("orders", id),
+  permanentDelete: (id: string) => supabasePermanentDelete("orders", id),
 };
 
 export const supabaseReviews = {

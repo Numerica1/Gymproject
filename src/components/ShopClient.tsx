@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,6 +10,7 @@ import {
   FaChevronRight,
   FaFilter,
   FaEye,
+  FaEyeSlash,
   FaHeart,
   FaMagnifyingGlass,
   FaMinus,
@@ -18,6 +19,8 @@ import {
   FaUser,
   FaXmark,
   FaSpinner,
+  FaArrowRightFromBracket,
+  FaShieldHalved,
 } from "react-icons/fa6";
 import Image from "next/image";
 import {
@@ -100,6 +103,9 @@ export default function ShopClient() {
   const [authSuccess, setAuthSuccess] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(clientStorageKey);
@@ -111,6 +117,17 @@ export default function ShopClient() {
       }
     }
   }, []);
+
+  // Close dropdown on click outside
+  const closeDropdown = useCallback((e: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      setDropdownOpen(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (dropdownOpen) document.addEventListener("mousedown", closeDropdown);
+    return () => document.removeEventListener("mousedown", closeDropdown);
+  }, [dropdownOpen, closeDropdown]);
 
   const handleLogout = () => {
     window.localStorage.removeItem(clientStorageKey);
@@ -579,11 +596,7 @@ export default function ShopClient() {
 
           <div className="shopHeaderActions">
             {loggedInClient ? (
-              <div
-                className="shopUserDropdownContainer"
-                style={{ position: "relative" }}
-                onMouseLeave={() => setDropdownOpen(false)}
-              >
+              <div className="shopUserDropdownContainer" ref={dropdownRef}>
                 <button
                   type="button"
                   onClick={() => setDropdownOpen((v) => !v)}
@@ -591,20 +604,34 @@ export default function ShopClient() {
                   aria-label="Account menu"
                   title={loggedInClient.name}
                 >
-                  <FaUser />
+                  <span className="shopUserAvatar">
+                    {loggedInClient.name.charAt(0).toUpperCase()}
+                  </span>
                   <span className="shopUserNavName">{loggedInClient.name.split(" ")[0]}</span>
                 </button>
                 {dropdownOpen && (
                   <div className="shopUserDropdownMenu">
+                    {/* User info header */}
                     <div className="shopDropdownUserHeader">
-                      <strong>{loggedInClient.name}</strong>
-                      <span>{loggedInClient.email}</span>
+                      <span className="shopDropdownAvatar">
+                        {loggedInClient.name.charAt(0).toUpperCase()}
+                      </span>
+                      <div className="shopDropdownUserInfo">
+                        <strong>{loggedInClient.name}</strong>
+                        <span>{loggedInClient.email}</span>
+                        <span className="shopDropdownBadge">{loggedInClient.package?.name || "No Active Plan"}</span>
+                      </div>
                     </div>
-                    <hr style={{ border: 0, borderTop: "1px solid #27272a", margin: "6px 0" }} />
-                    <Link href="/client" onClick={() => setDropdownOpen(false)}>My Portal</Link>
-                    <Link href="/cart" onClick={() => setDropdownOpen(false)}>My Cart</Link>
+                    <hr className="shopDropdownDivider" />
+                    <Link href="/shop-portal" className="shopDropdownLink" onClick={() => setDropdownOpen(false)}>
+                      <FaShieldHalved /> My Portal
+                    </Link>
+                    <Link href="/cart" className="shopDropdownLink" onClick={() => setDropdownOpen(false)}>
+                      <FaBagShopping /> My Cart
+                    </Link>
+                    <hr className="shopDropdownDivider" />
                     <button type="button" className="shopDropdownLogout" onClick={handleLogout}>
-                      Sign Out
+                      <FaArrowRightFromBracket /> Sign Out
                     </button>
                   </div>
                 )}
@@ -612,9 +639,10 @@ export default function ShopClient() {
             ) : (
               <button
                 type="button"
+                className="shopSignInBtn"
                 onClick={() => { setAuthMode("login"); setAuthError(""); setAuthModalOpen(true); }}
-                aria-label="Log in"
-                title="Log in or register"
+                aria-label="Sign in to your account"
+                title="Sign In / Register"
               >
                 <FaUser />
               </button>
@@ -1138,8 +1166,8 @@ export default function ShopClient() {
         </div>
       )}
       {authModalOpen && (
-        <div className="shopDetailOverlay" role="dialog" aria-modal="true" aria-label="Authentication">
-          <article className="shopWishlistModal" style={{ maxWidth: "450px" }}>
+        <div className="shopDetailOverlay" role="dialog" aria-modal="true" aria-label="Authentication" onClick={(e) => { if (e.target === e.currentTarget) setAuthModalOpen(false); }}>
+          <article className="shopAuthModal">
             <button
               type="button"
               className="shopDetailClose"
@@ -1148,144 +1176,140 @@ export default function ShopClient() {
             >
               <FaXmark />
             </button>
-            <h2>{authMode === "login" ? "Sign In" : "Create Account"}</h2>
-            
+
+            <div className="shopAuthModalHeader">
+              <span className="shopAuthModalIcon"><FaUser /></span>
+              <h2>{authMode === "login" ? "Welcome Back" : "Create Account"}</h2>
+              <p>{authMode === "login" ? "Sign in to access your membership & cart." : "Join Fitness Bhaktapur today."}</p>
+            </div>
+
             {authSuccess ? (
-              <div className="shopAuthSuccess" style={{ textAlign: "center", padding: "20px 0" }}>
-                <p style={{ color: "#ffe500", fontWeight: 600, fontSize: "1.1rem" }}>{authSuccess}</p>
-                <p style={{ color: "#a1a1aa", fontSize: "0.9rem" }}>Logging you in...</p>
+              <div className="shopAuthSuccess">
+                <p className="shopAuthSuccessTitle">{authSuccess}</p>
+                <p className="shopAuthSuccessSub">Logging you in…</p>
               </div>
             ) : (
-              <form onSubmit={authMode === "login" ? handleLoginSubmit : handleRegisterSubmit} autoComplete="off" style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "16px" }}>
+              <form onSubmit={authMode === "login" ? handleLoginSubmit : handleRegisterSubmit} autoComplete="on" className="shopAuthForm">
                 {authMode === "register" && (
-                  <div style={{ display: "flex", gap: "12px" }}>
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>First Name *</label>
+                  <div className="shopAuthFieldRow">
+                    <div className="shopAuthField">
+                      <label htmlFor="authFirstName">First Name *</label>
                       <input
+                        id="authFirstName"
                         type="text"
                         value={authFirstName}
                         onChange={(e) => setAuthFirstName(e.target.value)}
                         required
+                        autoComplete="given-name"
                         placeholder="First name"
-                        style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
                       />
                     </div>
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Last Name *</label>
+                    <div className="shopAuthField">
+                      <label htmlFor="authLastName">Last Name *</label>
                       <input
+                        id="authLastName"
                         type="text"
                         value={authLastName}
                         onChange={(e) => setAuthLastName(e.target.value)}
                         required
+                        autoComplete="family-name"
                         placeholder="Last name"
-                        style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
                       />
                     </div>
                   </div>
                 )}
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Email Address *</label>
+                <div className="shopAuthField">
+                  <label htmlFor="authEmail">Email Address *</label>
                   <input
+                    id="authEmail"
                     type="email"
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     required
-                    autoComplete="off"
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readonly')}
+                    autoComplete="email"
                     placeholder="your@email.com"
-                    style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
                   />
                 </div>
 
                 {authMode === "register" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Phone Number *</label>
+                  <div className="shopAuthField">
+                    <label htmlFor="authPhone">Phone Number *</label>
                     <input
+                      id="authPhone"
                       type="tel"
                       value={authPhone}
                       onChange={(e) => setAuthPhone(e.target.value)}
                       required
                       maxLength={10}
+                      autoComplete="tel"
                       placeholder="10-digit phone number"
-                      style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
                     />
                   </div>
                 )}
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Password *</label>
-                  <input
-                    type="password"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    required
-                    autoComplete="new-password"
-                    readOnly
-                    onFocus={(e) => e.target.removeAttribute('readonly')}
-                    placeholder="Enter password"
-                    style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
-                  />
+                <div className="shopAuthField">
+                  <label htmlFor="authPassword">Password *</label>
+                  <div className="shopAuthPasswordWrap">
+                    <input
+                      id="authPassword"
+                      type={showPassword ? "text" : "password"}
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      required
+                      autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                      placeholder={authMode === "login" ? "Your password" : "Min. 6 characters"}
+                    />
+                    <button type="button" className="shopAuthEyeBtn" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Hide password" : "Show password"}>
+                      {showPassword ? <FaEyeSlash /> : <FaEye />}
+                    </button>
+                  </div>
                 </div>
 
                 {authMode === "register" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#e4e4e7" }}>Confirm Password *</label>
-                    <input
-                      type="password"
-                      value={authConfirmPassword}
-                      onChange={(e) => setAuthConfirmPassword(e.target.value)}
-                      required
-                      placeholder="Confirm password"
-                      style={{ padding: "10px 12px", background: "#18181b", border: "1px solid #3f3f46", borderRadius: "6px", color: "#fff", fontSize: "0.9rem" }}
-                    />
+                  <div className="shopAuthField">
+                    <label htmlFor="authConfirmPassword">Confirm Password *</label>
+                    <div className="shopAuthPasswordWrap">
+                      <input
+                        id="authConfirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={authConfirmPassword}
+                        onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                        required
+                        autoComplete="new-password"
+                        placeholder="Repeat password"
+                      />
+                      <button type="button" className="shopAuthEyeBtn" onClick={() => setShowConfirmPassword((v) => !v)} aria-label={showConfirmPassword ? "Hide password" : "Show password"}>
+                        {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {authError && (
-                  <p style={{ color: "#ef4444", fontSize: "0.85rem", margin: "4px 0 0", fontWeight: 500 }}>
-                    {authError}
-                  </p>
+                  <p className="shopAuthError">{authError}</p>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="shopAddButton"
-                  style={{ width: "100%", padding: "12px", marginTop: "8px", fontWeight: 700, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
-                >
+                <button type="submit" disabled={isSubmitting} className="shopAuthSubmitBtn">
                   {isSubmitting ? (
-                    <>
-                      <FaSpinner style={{ animation: "spin 1s linear infinite" }} /> Processing...
-                    </>
+                    <><FaSpinner className="shopAuthSpinner" /> Processing…</>
                   ) : authMode === "login" ? (
-                    "Sign In"
+                    <><FaUser /> Sign In</>
                   ) : (
                     "Create Account"
                   )}
                 </button>
 
-                <div style={{ textAlign: "center", marginTop: "8px" }}>
+                <div className="shopAuthSwitch">
                   {authMode === "login" ? (
-                    <p style={{ fontSize: "0.85rem", color: "#a1a1aa", margin: 0 }}>
-                      Don&apos;t have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => { setAuthMode("register"); setAuthError(""); }}
-                        style={{ background: "none", border: "none", color: "#ffe500", fontWeight: 600, cursor: "pointer", padding: 0 }}
-                      >
+                    <p>Don&apos;t have an account?{" "}
+                      <button type="button" onClick={() => { setAuthMode("register"); setAuthError(""); setShowPassword(false); }}>
                         Sign Up
                       </button>
                     </p>
                   ) : (
-                    <p style={{ fontSize: "0.85rem", color: "#a1a1aa", margin: 0 }}>
-                      Already have an account?{" "}
-                      <button
-                        type="button"
-                        onClick={() => { setAuthMode("login"); setAuthError(""); }}
-                        style={{ background: "none", border: "none", color: "#ffe500", fontWeight: 600, cursor: "pointer", padding: 0 }}
-                      >
+                    <p>Already have an account?{" "}
+                      <button type="button" onClick={() => { setAuthMode("login"); setAuthError(""); setShowPassword(false); setShowConfirmPassword(false); }}>
                         Sign In
                       </button>
                     </p>
@@ -1299,3 +1323,4 @@ export default function ShopClient() {
     </section>
   );
 }
+

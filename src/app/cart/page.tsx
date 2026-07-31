@@ -381,6 +381,13 @@ export default function CartPage() {
         pickupPoint: pickupAddress.trim(),
         address: pickupAddress.trim(),
         paymentMethod: paymentMethodLabel,
+        cartItems: selectedCartItems.map((item) => ({
+          productName: item.product.name,
+          brand: item.product.brandName || "FitnessHealth",
+          quantity: item.quantity,
+          price: item.product.price,
+          image: item.product.image || "",
+        })),
       };
 
       // Deduct stock

@@ -37,6 +37,7 @@ export async function GET() {
 
     // Tables that need soft-delete columns
     const tables = [
+      "clients",
       "products",
       "brands",
       "shop_categories",

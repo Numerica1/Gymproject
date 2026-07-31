@@ -25,12 +25,21 @@ create table if not exists public.clients (
   package_status  text,
   username        text,
   source_payload  jsonb       not null default '{}'::jsonb,
+  is_deleted      boolean     not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz not null default now()
 );
 
 create index if not exists idx_clients_email on public.clients (email);
 create index if not exists idx_clients_client_code on public.clients (client_code);
 create unique index if not exists ux_clients_client_code on public.clients (client_code);
+create index if not exists idx_clients_is_deleted on public.clients (is_deleted);
+
+-- Migration: add soft-delete columns if not already present (for existing databases)
+alter table public.clients add column if not exists is_deleted boolean not null default false;
+alter table public.clients add column if not exists deleted_at timestamptz;
+alter table public.clients add column if not exists deleted_by text;
 
 alter table public.clients enable row level security;
 
@@ -63,9 +72,17 @@ create table if not exists public.memberships (
   upcoming_classes jsonb        not null default '[]'::jsonb,
   highlighted      boolean       not null default false,
   source_payload   jsonb        not null default '{}'::jsonb,
+  is_deleted       boolean       not null default false,
+  deleted_at       timestamptz,
+  deleted_by       text,
   created_at       timestamptz   not null default now(),
   updated_at       timestamptz   not null default now()
 );
+
+alter table public.memberships add column if not exists is_deleted boolean not null default false;
+alter table public.memberships add column if not exists deleted_at timestamptz;
+alter table public.memberships add column if not exists deleted_by text;
+
 
 create index if not exists idx_memberships_name on public.memberships (name);
 create index if not exists idx_memberships_plan_key on public.memberships (plan_key);
@@ -96,6 +113,9 @@ create table if not exists public.trainers (
   category         text,
   clients_label    text,
   source_payload   jsonb       not null default '{}'::jsonb,
+  is_deleted       boolean     not null default false,
+  deleted_at       timestamptz,
+  deleted_by       text,
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
@@ -103,6 +123,11 @@ create table if not exists public.trainers (
 create index if not exists idx_trainers_name on public.trainers (name);
 create index if not exists idx_trainers_trainer_key on public.trainers (trainer_key);
 create unique index if not exists ux_trainers_trainer_key on public.trainers (trainer_key);
+create index if not exists idx_trainers_is_deleted on public.trainers (is_deleted);
+
+alter table public.trainers add column if not exists is_deleted boolean not null default false;
+alter table public.trainers add column if not exists deleted_at timestamptz;
+alter table public.trainers add column if not exists deleted_by text;
 
 drop trigger if exists trainers_set_updated_at on public.trainers;
 create trigger trainers_set_updated_at
@@ -173,6 +198,9 @@ create table if not exists public.brands (
   description     text,
   status          text        not null default 'Active',
   source_payload  jsonb       not null default '{}'::jsonb,
+  is_deleted      boolean     not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
@@ -180,7 +208,13 @@ create table if not exists public.brands (
 create index if not exists idx_brands_name on public.brands (name);
 create index if not exists idx_brands_brand_key on public.brands (brand_key);
 create index if not exists idx_brands_status on public.brands (status);
+create index if not exists idx_brands_is_deleted on public.brands (is_deleted);
 create unique index if not exists ux_brands_brand_key on public.brands (brand_key);
+
+alter table public.brands add column if not exists is_deleted boolean not null default false;
+alter table public.brands add column if not exists deleted_at timestamptz;
+alter table public.brands add column if not exists deleted_by text;
+
 
 drop trigger if exists brands_set_updated_at on public.brands;
 create trigger brands_set_updated_at
@@ -213,9 +247,17 @@ create table if not exists public.products (
   product_key     text          unique,
   status          text          not null default 'Active',
   source_payload  jsonb         not null default '{}'::jsonb,
+  is_deleted      boolean       not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz   not null default now(),
   updated_at      timestamptz   not null default now()
 );
+
+alter table public.products add column if not exists is_deleted boolean not null default false;
+alter table public.products add column if not exists deleted_at timestamptz;
+alter table public.products add column if not exists deleted_by text;
+
 
 alter table public.products add column if not exists brand_id uuid references public.brands (id) on delete set null;
 alter table public.products add column if not exists brand_key text;
@@ -261,25 +303,38 @@ create policy "Anyone can view products"
 -- =============================================================
 create table if not exists public.orders (
   id              uuid          primary key default gen_random_uuid(),
-  client_id       uuid          not null references public.clients (id) on delete cascade,
+  client_id       uuid          references public.clients (id) on delete cascade,
   order_number    text          unique,
   customer_name   text,
   items           text,
   total_amount    numeric(10,2) not null,
   payment_label   text,
-  status          text          not null default 'pending'
-                                  check (status in ('pending', 'processing', 'completed', 'cancelled')),
+  payment_method  text,
+  phone           text,
+  status          text          not null default 'Processing',
   email           text,
   pickup_point    text,
   address         text,
   source_payload  jsonb         not null default '{}'::jsonb,
+  is_deleted      boolean       not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz   not null default now(),
   updated_at      timestamptz   not null default now()
 );
 
+alter table public.orders alter column client_id drop not null;
+alter table public.orders add column if not exists phone text;
+alter table public.orders add column if not exists payment_method text;
+alter table public.orders add column if not exists is_deleted boolean not null default false;
+alter table public.orders add column if not exists deleted_at timestamptz;
+alter table public.orders add column if not exists deleted_by text;
+alter table public.orders drop constraint if exists orders_status_check;
+
 create index if not exists idx_orders_client_id     on public.orders (client_id);
 create index if not exists idx_orders_status        on public.orders (status);
 create index if not exists idx_orders_order_number  on public.orders (order_number);
+create index if not exists idx_orders_is_deleted    on public.orders (is_deleted);
 create unique index if not exists ux_orders_order_number on public.orders (order_number);
 
 drop trigger if exists orders_set_updated_at on public.orders;
@@ -290,12 +345,16 @@ create trigger orders_set_updated_at
 alter table public.orders enable row level security;
 
 drop policy if exists "Clients can view their own orders" on public.orders;
-create policy "Clients can view their own orders"
-  on public.orders for select using (auth.uid() = client_id);
-
 drop policy if exists "Clients can create their own orders" on public.orders;
-create policy "Clients can create their own orders"
-  on public.orders for insert with check (auth.uid() = client_id);
+drop policy if exists "Anyone can view orders" on public.orders;
+drop policy if exists "Anyone can create orders" on public.orders;
+drop policy if exists "Anyone can update orders" on public.orders;
+drop policy if exists "Anyone can delete orders" on public.orders;
+
+create policy "Anyone can view orders" on public.orders for select using (true);
+create policy "Anyone can create orders" on public.orders for insert with check (true);
+create policy "Anyone can update orders" on public.orders for update using (true) with check (true);
+create policy "Anyone can delete orders" on public.orders for delete using (true);
 
 -- =============================================================
 -- 7. ORDER ITEMS
@@ -343,9 +402,17 @@ create table if not exists public.reviews (
   product_name    text,
   status          text        not null default 'Approved',
   source_payload  jsonb       not null default '{}'::jsonb,
+  is_deleted      boolean     not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
+
+alter table public.reviews add column if not exists is_deleted boolean not null default false;
+alter table public.reviews add column if not exists deleted_at timestamptz;
+alter table public.reviews add column if not exists deleted_by text;
+
 
 create index if not exists idx_reviews_client_id   on public.reviews (client_id);
 create index if not exists idx_reviews_rating      on public.reviews (rating);
@@ -391,9 +458,17 @@ create table if not exists public.offers (
   offer_type            text,
   status                text          not null default 'Active',
   source_payload        jsonb         not null default '{}'::jsonb,
+  is_deleted            boolean       not null default false,
+  deleted_at            timestamptz,
+  deleted_by            text,
   created_at            timestamptz   not null default now(),
   updated_at            timestamptz   not null default now()
 );
+
+alter table public.offers add column if not exists is_deleted boolean not null default false;
+alter table public.offers add column if not exists deleted_at timestamptz;
+alter table public.offers add column if not exists deleted_by text;
+
 
 alter table public.offers drop constraint if exists offers_date_check;
 
@@ -429,6 +504,9 @@ create table if not exists public.blogs (
   read_time       text,
   summary         text,
   source_payload  jsonb       not null default '{}'::jsonb,
+  is_deleted      boolean     not null default false,
+  deleted_at      timestamptz,
+  deleted_by      text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
@@ -436,7 +514,13 @@ create table if not exists public.blogs (
 create index if not exists idx_blogs_author_id   on public.blogs (author_id);
 create index if not exists idx_blogs_created_at on public.blogs (created_at desc);
 create index if not exists idx_blogs_slug        on public.blogs (slug);
+create index if not exists idx_blogs_is_deleted  on public.blogs (is_deleted);
 create unique index if not exists ux_blogs_slug on public.blogs (slug);
+
+alter table public.blogs add column if not exists is_deleted boolean not null default false;
+alter table public.blogs add column if not exists deleted_at timestamptz;
+alter table public.blogs add column if not exists deleted_by text;
+
 
 drop trigger if exists blogs_set_updated_at on public.blogs;
 create trigger blogs_set_updated_at
@@ -675,13 +759,22 @@ create table if not exists public.shop_categories (
   image_url      text,
   display_order  integer     not null default 0,
   source_payload jsonb       not null default '{}'::jsonb,
+  is_deleted     boolean     not null default false,
+  deleted_at     timestamptz,
+  deleted_by     text,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
 
+alter table public.shop_categories add column if not exists is_deleted boolean not null default false;
+alter table public.shop_categories add column if not exists deleted_at timestamptz;
+alter table public.shop_categories add column if not exists deleted_by text;
+
 create index if not exists idx_shop_categories_order on public.shop_categories (display_order asc);
+create index if not exists idx_shop_categories_is_deleted on public.shop_categories (is_deleted);
 create unique index if not exists ux_shop_categories_label_category
   on public.shop_categories (lower(label), lower(category));
+
 
 drop trigger if exists shop_categories_set_updated_at on public.shop_categories;
 create trigger shop_categories_set_updated_at

@@ -22,6 +22,7 @@ interface TrashModule {
 }
 
 const TRASH_MODULES: TrashModule[] = [
+  { tableName: "clients",        module: "Members",       nameColumn: "full_name" },
   { tableName: "products",        module: "Products",      nameColumn: "name" },
   { tableName: "brands",          module: "Brands",        nameColumn: "name" },
   { tableName: "shop_categories", module: "Categories",    nameColumn: "label" },

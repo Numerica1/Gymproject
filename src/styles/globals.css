@@ -6402,27 +6402,27 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 24px;
+  gap: 16px;
   color: #242424;
 }
 
-.shopHeaderActions button {
+.shopHeaderActions > button:not(.shopSignInBtn):not(.shopUserBtn) {
   position: relative;
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 0;
   color: #232323;
   background: transparent;
   cursor: pointer;
-  font-size: 24px;
+  font-size: 20px;
 }
 
-.shopHeaderActions button span {
+.shopHeaderActions > button:not(.shopSignInBtn):not(.shopUserBtn) span {
   position: absolute;
-  top: -7px;
-  right: -8px;
+  top: -6px;
+  right: -6px;
   display: grid;
   min-width: 18px;
   height: 18px;
@@ -6440,20 +6440,24 @@ h3 {
 }
 
 .shopUserBtn {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
   width: auto !important;
   height: auto !important;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 20px !important;
-  background: transparent;
-  transition: background 0.2s ease;
+  min-height: 38px !important;
+  padding: 6px 14px !important;
+  background: #f4f4f5 !important;
+  border: 1.5px solid #e4e4e7 !important;
+  border-radius: 20px !important;
+  cursor: pointer !important;
+  transition: all 0.18s ease !important;
 }
 
 .shopUserBtn:hover, .shopUserBtn.active {
-  background: rgba(0, 0, 0, 0.05);
+  background: #ffe500 !important;
+  border-color: #ffe500 !important;
 }
 
 .shopUserNavName {
@@ -6537,6 +6541,1034 @@ h3 {
 
 .shopDropdownLogout:hover {
   background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* ── Shop Sign In Button (header, logged-out state) ── */
+.shopSignInBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  color: #232323 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  transition: color 0.18s ease, background 0.18s ease !important;
+  box-shadow: none !important;
+}
+.shopSignInBtn:hover {
+  color: #f05a28 !important;
+  background: rgba(240, 90, 40, 0.08) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Avatar initials circle ── */
+.shopUserAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #f05a28 0%, #ff7733 100%);
+  color: #ffffff;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* ── Dropdown redesign ── */
+.shopUserDropdownContainer {
+  position: relative;
+}
+
+.shopDropdownAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #f05a28 0%, #ff7733 100%);
+  color: #ffffff;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.shopDropdownUserHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 10px;
+}
+
+.shopDropdownUserInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.shopDropdownUserInfo strong {
+  font-size: 14px !important;
+  font-weight: 700;
+  color: #ffffff !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shopDropdownUserInfo span {
+  font-size: 11px;
+  color: #a1a1aa;
+  word-break: break-all;
+}
+
+.shopDropdownBadge {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 8px;
+  background: rgba(240, 90, 40, 0.15);
+  color: #f05a28 !important;
+  border-radius: 20px;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.shopDropdownDivider {
+  border: 0;
+  border-top: 1px solid #27272a;
+  margin: 4px 0;
+}
+
+.shopDropdownLink {
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px !important;
+  color: #e4e4e7 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  text-decoration: none !important;
+  border-radius: 6px !important;
+  transition: background 0.18s, color 0.18s !important;
+}
+.shopDropdownLink:hover {
+  background: #27272a !important;
+  color: #f05a28 !important;
+}
+
+.shopDropdownLogout {
+  width: 100%;
+  display: flex !important;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  padding: 9px 10px;
+  margin-top: 0;
+  background: transparent !important;
+  border: 0;
+  color: #f87171 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  border-radius: 6px;
+  height: auto !important;
+  transition: background 0.18s;
+}
+.shopDropdownLogout:hover {
+  background: rgba(239, 68, 68, 0.12) !important;
+}
+
+/* ── Auth Modal ── */
+.shopAuthModal {
+  position: relative;
+  background: #18181b;
+  border: 1px solid #27272a;
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  width: 100%;
+  max-width: 440px;
+  box-shadow: 0 24px 48px rgba(0,0,0,0.6);
+  animation: fadeSlideUp 0.22s ease;
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.shopAuthModalHeader {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.shopAuthModalIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  background: rgba(240, 90, 40, 0.15);
+  color: #f05a28;
+  border-radius: 50%;
+  font-size: 22px;
+  margin-bottom: 12px;
+}
+.shopAuthModalHeader h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 6px;
+}
+.shopAuthModalHeader p {
+  font-size: 0.88rem;
+  color: #a1a1aa;
+  margin: 0;
+}
+
+/* ── Auth Form ── */
+.shopAuthForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.shopAuthFieldRow {
+  display: flex;
+  gap: 12px;
+}
+.shopAuthFieldRow .shopAuthField {
+  flex: 1;
+}
+
+.shopAuthField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.shopAuthField label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #d4d4d8;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.shopAuthField input {
+  padding: 11px 14px;
+  background: #09090b;
+  border: 1.5px solid #3f3f46;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.93rem;
+  width: 100%;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  outline: none;
+}
+.shopAuthField input:focus {
+  border-color: #f05a28;
+  box-shadow: 0 0 0 3px rgba(240, 90, 40, 0.18);
+}
+.shopAuthField input::placeholder {
+  color: #52525b;
+}
+
+/* Password field with eye toggle */
+.shopAuthPasswordWrap {
+  position: relative;
+}
+.shopAuthPasswordWrap input {
+  padding-right: 44px;
+}
+.shopAuthEyeBtn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #71717a;
+  cursor: pointer;
+  font-size: 15px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.shopAuthEyeBtn:hover {
+  color: #f05a28;
+}
+
+.shopAuthError {
+  color: #f87171;
+  font-size: 0.84rem;
+  font-weight: 500;
+  margin: 0;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 6px;
+}
+
+.shopAuthSubmitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #f05a28 0%, #e04816 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s;
+  box-shadow: 0 4px 14px rgba(240, 90, 40, 0.35);
+}
+.shopAuthSubmitBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff6b38 0%, #f05a28 100%);
+  transform: translateY(-1px);
+}
+.shopAuthSubmitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.shopAuthSpinner {
+  animation: spin 1s linear infinite;
+}
+
+.shopAuthSwitch {
+  text-align: center;
+  margin-top: 4px;
+}
+.shopAuthSwitch p {
+  font-size: 0.85rem;
+  color: #71717a;
+  margin: 0;
+}
+.shopAuthSwitch button {
+  background: none;
+  border: none;
+  color: #f05a28;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  transition: opacity 0.15s;
+}
+.shopAuthSwitch button:hover {
+  opacity: 0.8;
+}
+
+/* Auth success screen */
+.shopAuthSuccess {
+  text-align: center;
+  padding: 28px 0;
+}
+.shopAuthSuccessTitle {
+  color: #ffe500;
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin: 0 0 8px;
+}
+.shopAuthSuccessSub {
+  color: #a1a1aa;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════
+   Shop Client Portal  (scpXxx classes)
+══════════════════════════════════════════ */
+
+/* Loading */
+.scpLoading {
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: #a1a1aa;
+  font-size: 1rem;
+}
+
+/* Spin animation */
+.scpSpinAnim {
+  animation: spin 1s linear infinite;
+}
+
+/* Guest (not logged in) */
+.scpGuestScreen {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: var(--paper);
+}
+.scpGuestCard {
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 48px 36px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.06);
+}
+.scpGuestIcon {
+  display: inline-flex;
+  font-size: 4rem;
+  color: #f05a28;
+  margin-bottom: 16px;
+}
+.scpGuestCard h1 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.scpGuestCard p {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin: 0 0 24px;
+  line-height: 1.6;
+}
+.scpGuestBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 28px;
+  background: linear-gradient(135deg, #f05a28, #e04816);
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(240,90,40,0.3);
+  transition: transform 0.18s, box-shadow 0.18s;
+}
+.scpGuestBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(240,90,40,0.4);
+}
+
+/* Main page */
+.scpPage {
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+/* Hero */
+.scpHero {
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d1a10 60%, #3d2010 100%);
+  padding: 48px var(--page-padding) 0;
+}
+.scpHeroInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 32px;
+}
+.scpHeroLeft {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.scpHeroAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  background: linear-gradient(135deg, #f05a28, #ff7733);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 28px;
+  font-weight: 900;
+  flex-shrink: 0;
+  box-shadow: 0 4px 20px rgba(240,90,40,0.4);
+}
+.scpHeroEyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #f05a28;
+  margin: 0 0 4px;
+}
+.scpHeroName {
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #fff;
+  margin: 0 0 4px;
+}
+.scpHeroEmail {
+  font-size: 0.88rem;
+  color: #a1a1aa;
+  margin: 0;
+}
+.scpHeroActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.scpHeroActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  transition: all 0.18s;
+}
+.scpHeroActionBtn.secondary {
+  background: rgba(255,255,255,0.1);
+  color: #e4e4e7;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.scpHeroActionBtn.secondary:hover {
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+}
+.scpHeroActionBtn.danger {
+  background: rgba(239,68,68,0.15);
+  color: #f87171;
+  border: 1px solid rgba(239,68,68,0.2);
+}
+.scpHeroActionBtn.danger:hover {
+  background: rgba(239,68,68,0.25);
+  color: #fca5a5;
+}
+
+/* Stats bar */
+.scpStatBar {
+  display: flex;
+  gap: 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  margin: 0 calc(-1 * var(--page-padding));
+}
+.scpStat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 18px 12px;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.scpStat:last-child { border-right: 0; }
+.scpStat strong {
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: #f05a28;
+}
+.scpStat span {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Body */
+.scpBody {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px var(--page-padding) 80px;
+}
+
+/* Tabs */
+.scpTabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+  border-bottom: 2px solid var(--line);
+  padding-bottom: 0;
+}
+.scpTab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.18s, border-color 0.18s;
+}
+.scpTab.active {
+  color: #f05a28;
+  border-bottom-color: #f05a28;
+}
+.scpTab:hover:not(.active) {
+  color: var(--ink);
+}
+
+/* Tab content */
+.scpTabContent {
+  animation: fadeSlideUp 0.2s ease;
+}
+
+/* Empty orders */
+.scpEmptyOrders {
+  text-align: center;
+  padding: 64px 24px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.scpEmptyIcon {
+  font-size: 3.5rem;
+  color: var(--line);
+  margin-bottom: 16px;
+}
+.scpEmptyOrders h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.scpEmptyOrders p {
+  color: var(--muted);
+  margin: 0 0 24px;
+  font-size: 0.95rem;
+}
+.scpEmptyShopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #f05a28;
+  color: #fff;
+  border-radius: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.18s;
+}
+.scpEmptyShopBtn:hover { background: #e04816; }
+
+/* Orders list */
+.scpOrdersList { display: flex; flex-direction: column; gap: 12px; }
+.scpOrdersHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.scpOrdersHeader h2 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0;
+}
+.scpOrdersHeader span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Order Card */
+.scpOrderCard {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.18s;
+}
+.scpOrderCard:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
+
+.scpOrderCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.scpOrderCardLeft {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scpOrderId {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #f05a28;
+}
+.scpOrderDate {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.scpOrderCardRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.scpOrderTotal {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+.scpOrderStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.scpExpandBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+}
+
+/* Order card body */
+.scpOrderCardBody {
+  border-top: 1px solid var(--line);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: #fafafa;
+}
+.scpOrderItemsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.scpOrderItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.scpOrderItemImg {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+}
+.scpOrderItemIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #f4f4f5;
+  color: #f05a28;
+  border-radius: 6px;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.scpOrderItemInfo {
+  flex: 1;
+  min-width: 0;
+}
+.scpOrderItemInfo strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scpOrderItemInfo span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.scpOrderItemQtyPrice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.scpQtyBadge {
+  padding: 2px 10px;
+  background: #f05a28;
+  color: #fff;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.scpItemPrice {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Order meta row */
+.scpOrderMetaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.scpOrderMeta {
+  flex: 1;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.scpOrderMeta span {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.scpOrderMeta strong {
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+/* Profile card */
+.scpProfileCard {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.scpProfileHeader {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 28px 28px 24px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(135deg, #fff8f6, #fff);
+}
+.scpProfileAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  background: linear-gradient(135deg, #f05a28, #ff7733);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 24px;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.scpProfileHeader h2 {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.scpProfileHeader p {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0;
+}
+.scpProfileFields {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.scpProfileField {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--line);
+}
+.scpProfileField:last-child { border-bottom: 0; }
+.scpProfileFieldIcon {
+  color: #f05a28;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+.scpProfileField > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.scpProfileField span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.scpProfileField strong {
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.scpProfileActions {
+  display: flex;
+  gap: 12px;
+  padding: 20px 28px;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+}
+.scpEditProfileBtn,
+.scpGymPortalBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.18s;
+  border: none;
+}
+.scpEditProfileBtn {
+  background: #f05a28;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(240,90,40,0.25);
+}
+.scpEditProfileBtn:hover { background: #e04816; }
+.scpGymPortalBtn {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+.scpGymPortalBtn:hover {
+  background: #fff;
+  border-color: #f05a28;
+  color: #f05a28;
+}
+
+/* Edit profile modal */
+.scpModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 20px;
+}
+.scpModal {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+  animation: fadeSlideUp 0.22s ease;
+}
+.scpModalClose {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+}
+.scpModalClose:hover { color: var(--ink); }
+.scpModalTitle {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin: 0 0 24px;
+}
+.scpModalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.scpFormField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.scpFormField label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.scpFormField input {
+  padding: 11px 14px;
+  background: #f9f9f9;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.93rem;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.scpFormField input:focus {
+  border-color: #f05a28;
+  box-shadow: 0 0 0 3px rgba(240,90,40,0.12);
+}
+.scpModalSaveBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px;
+  margin-top: 4px;
+  background: linear-gradient(135deg, #f05a28, #e04816);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s;
+  box-shadow: 0 4px 14px rgba(240,90,40,0.3);
+}
+.scpModalSaveBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff6b38, #f05a28);
+  transform: translateY(-1px);
+}
+.scpModalSaveBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Responsive */
+@media (max-width: 680px) {
+  .scpHeroInner { flex-direction: column; align-items: flex-start; }
+  .scpStatBar { flex-wrap: wrap; }
+  .scpStat { flex: 1 1 45%; }
+  .scpOrderCardHeader { gap: 8px; }
+  .scpOrderCardRight { flex-wrap: wrap; }
+  .scpProfileField { padding: 14px 18px; }
+  .scpProfileHeader { padding: 20px 18px; }
+  .scpModal { padding: 28px 20px 20px; }
 }
 
 .adminStatusToggle {
