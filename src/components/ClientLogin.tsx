@@ -77,6 +77,11 @@ export default function ClientLogin() {
     }
 
     window.localStorage.setItem(clientStorageKey, JSON.stringify(client));
+    if (client.package?.key === "none" || client.package?.name === "No Active Plan") {
+      router.push("/shop-portal");
+      return;
+    }
+
     window.localStorage.setItem("hasClickedDashboard", "true");
     if (staySignedIn) {
       window.localStorage.setItem("staySignedIn", "true");

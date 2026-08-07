@@ -749,7 +749,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
               )}
 
               {step === "credentials" && (
-                <form onSubmit={handleCredentialsSubmit}>
+                <form onSubmit={handleCredentialsSubmit} autoComplete="off">
                   <h4 className="formSectionTitle">Set Up Your Portal Login</h4>
                   <p style={{ fontSize: "0.85rem", color: "#a1a1aa", marginBottom: "20px", lineHeight: 1.6 }}>
                     Create login credentials so you can sign in to <strong style={{ color: "#f4f4f5" }}>your client portal</strong> anytime to view your package, sessions, and trainer details.
@@ -764,7 +764,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                         value={username}
                         onChange={(e) => setUsername(e.target.value.replace(/\s/g, "").toLowerCase())}
                         placeholder="e.g. johndoe123"
-                        autoComplete="username"
+                        autoComplete="off"
                         required
                       />
                       <span style={{ fontSize: "0.75rem", color: "#71717a" }}>No spaces. Lowercase letters, numbers and underscores only.</span>
@@ -778,7 +778,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="Min. 6 characters"
-                          autoComplete="new-password"
+                          autoComplete="off"
                           required
                         />
                         <button
@@ -802,7 +802,7 @@ export default function JoinProgramButton({ program }: JoinProgramButtonProps) {
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Re-enter password"
-                        autoComplete="new-password"
+                        autoComplete="off"
                         required
                       />
                     </div>

@@ -65,7 +65,6 @@ function getCartProductImage(product: Product, index: number) {
 function getProductSpecPills(product: Product) {
   const pills: string[] = [];
   const name = (product.name || "").toLowerCase();
-  const category = (product.category || "").toLowerCase();
 
   if (name.includes("whey") || name.includes("protein")) {
     pills.push("24g Protein", "5.5g BCAA", "Low Sugar");
@@ -102,7 +101,6 @@ export default function CartPage() {
   const [promoError, setPromoError] = useState("");
   const [promoSuccess, setPromoSuccess] = useState("");
   const [showVouchersModal, setShowVouchersModal] = useState(false);
-  const [hoveredCode, setHoveredCode] = useState<string | null>(null);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placedOrderId, setPlacedOrderId] = useState("");
   const [showOrderSummary, setShowOrderSummary] = useState(false);
@@ -206,23 +204,6 @@ export default function CartPage() {
       setSelectedIds((prev) => Array.from(new Set([...prev, ...brandItemIds])));
     }
   };
-
-  const cartBrandName = useMemo(() => {
-    if (!cart.length) return "FitnessHealth Store";
-    const brandsInCart = Array.from(
-      new Set(
-        cart
-          .map((item) => item.product.brandName)
-          .filter((name): name is string => Boolean(name && name.trim()))
-      )
-    );
-    if (brandsInCart.length === 1) {
-      return `${brandsInCart[0]} Store`;
-    } else if (brandsInCart.length > 1) {
-      return `${brandsInCart[0]} & More`;
-    }
-    return "FitnessHealth Store";
-  }, [cart]);
 
   const cartTotal = useMemo(
     () =>

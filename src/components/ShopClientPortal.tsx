@@ -98,7 +98,7 @@ function OrderCard({ order }: { order: OrderLog }) {
             {items.map((item, idx) => (
               <div key={idx} className="scpOrderItem">
                 {item.image ? (
-                  <img src={item.image} alt={item.name} className="scpOrderItemImg" />
+                  <Image src={item.image} alt={item.name} width={48} height={48} unoptimized className="scpOrderItemImg" />
                 ) : (
                   <span className="scpOrderItemIcon"><FaBox /></span>
                 )}

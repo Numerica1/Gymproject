@@ -44,16 +44,17 @@ alter table public.clients add column if not exists deleted_by text;
 alter table public.clients enable row level security;
 
 drop policy if exists "Clients can view their own profile" on public.clients;
-create policy "Clients can view their own profile"
-  on public.clients for select using (auth.uid() = id);
-
 drop policy if exists "Clients can update their own profile" on public.clients;
-create policy "Clients can update their own profile"
-  on public.clients for update using (auth.uid() = id);
-
 drop policy if exists "Clients can insert their own profile" on public.clients;
-create policy "Clients can insert their own profile"
-  on public.clients for insert with check (auth.uid() = id);
+drop policy if exists "Anyone can view clients" on public.clients;
+drop policy if exists "Anyone can create clients" on public.clients;
+drop policy if exists "Anyone can update clients" on public.clients;
+drop policy if exists "Anyone can delete clients" on public.clients;
+
+create policy "Anyone can view clients" on public.clients for select using (true);
+create policy "Anyone can create clients" on public.clients for insert with check (true);
+create policy "Anyone can update clients" on public.clients for update using (true) with check (true);
+create policy "Anyone can delete clients" on public.clients for delete using (true);
 
 -- =============================================================
 -- 2. MEMBERSHIPS (Plans)

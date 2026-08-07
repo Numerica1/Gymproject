@@ -426,12 +426,11 @@ async function supabaseGet<T>(table: string, params?: Record<string, string>): P
   const response = await fetch(url);
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    console.error(`[Supabase Error] GET ${url} failed`, {
-      statusCode: response.status,
-      statusText: response.statusText,
-      url,
-      responseBody: text,
-    });
+    let detail = text;
+    try {
+      detail = JSON.stringify(JSON.parse(text), null, 2);
+    } catch {}
+    console.error(`[Supabase Error] GET ${url} failed (HTTP ${response.status} ${response.statusText}):\n${detail}`);
     throw new Error(`Failed to fetch from ${table}: HTTP ${response.status} - ${text || response.statusText}`);
   }
   return response.json();
@@ -439,11 +438,6 @@ async function supabaseGet<T>(table: string, params?: Record<string, string>): P
 
 async function supabasePost<T>(table: string, data: T): Promise<T> {
   const url = `${SUPABASE_API_URL}/${table}`;
-  console.log(`[Supabase Request] POST ${url}`, {
-    requestUrl: url,
-    table,
-    requestPayload: data,
-  });
 
   const response = await fetch(url, {
     method: "POST",
@@ -452,30 +446,22 @@ async function supabasePost<T>(table: string, data: T): Promise<T> {
   });
 
   if (!response.ok) {
-    let responseBody = "";
+    const text = await response.text().catch(() => "");
+    let detail = text;
     let supabaseError: unknown = null;
     try {
-      responseBody = await response.text();
-      supabaseError = JSON.parse(responseBody);
-    } catch {
-      // Body not JSON
-    }
+      supabaseError = JSON.parse(text);
+      detail = JSON.stringify(supabaseError, null, 2);
+    } catch {}
 
-    console.error(`[Supabase Error] POST ${url} failed`, {
-      statusCode: response.status,
-      statusText: response.statusText,
-      responseBody,
-      supabaseError,
-      requestPayload: data,
-      requestUrl: url,
-    });
+    console.error(`[Supabase Error] POST ${url} failed (HTTP ${response.status} ${response.statusText}):\n${detail}`);
 
     const errorMsg =
       typeof supabaseError === "object" && supabaseError && "error" in supabaseError
         ? String((supabaseError as { error: unknown }).error)
         : typeof supabaseError === "object" && supabaseError && "message" in supabaseError
         ? String((supabaseError as { message: unknown }).message)
-        : responseBody || `HTTP ${response.status} ${response.statusText}`;
+        : text || `HTTP ${response.status} ${response.statusText}`;
 
     throw new Error(`Failed to create in ${table}: ${errorMsg}`);
   }
@@ -493,12 +479,6 @@ function buildIdQuery(table: string, id: string): string {
 async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): Promise<T> {
   const query = buildIdQuery(table, id);
   const url = `${SUPABASE_API_URL}/${table}?${query}`;
-  console.log(`[Supabase Request] PUT ${url}`, {
-    requestUrl: url,
-    table,
-    id,
-    requestPayload: data,
-  });
 
   const response = await fetch(url, {
     method: "PUT",
@@ -507,28 +487,22 @@ async function supabaseUpdate<T>(table: string, id: string, data: Partial<T>): P
   });
 
   if (!response.ok) {
-    let responseBody = "";
+    const text = await response.text().catch(() => "");
+    let detail = text;
     let supabaseError: unknown = null;
     try {
-      responseBody = await response.text();
-      supabaseError = JSON.parse(responseBody);
-    } catch {
-      // Body not JSON
-    }
+      supabaseError = JSON.parse(text);
+      detail = JSON.stringify(supabaseError, null, 2);
+    } catch {}
 
-    console.error(`[Supabase Error] PUT ${url} failed`, {
-      statusCode: response.status,
-      statusText: response.statusText,
-      responseBody,
-      supabaseError,
-      requestPayload: data,
-      requestUrl: url,
-    });
+    console.error(`[Supabase Error] PUT ${url} failed (HTTP ${response.status} ${response.statusText}):\n${detail}`);
 
     const errorMsg =
       typeof supabaseError === "object" && supabaseError && "error" in supabaseError
         ? String((supabaseError as { error: unknown }).error)
-        : responseBody || `HTTP ${response.status} ${response.statusText}`;
+        : typeof supabaseError === "object" && supabaseError && "message" in supabaseError
+        ? String((supabaseError as { message: unknown }).message)
+        : text || `HTTP ${response.status} ${response.statusText}`;
 
     throw new Error(`Failed to update in ${table}: ${errorMsg}`);
   }
@@ -544,11 +518,7 @@ async function supabaseDelete(table: string, id: string): Promise<void> {
 
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    console.error(`[Supabase Error] DELETE ${url} failed`, {
-      statusCode: response.status,
-      responseBody: text,
-      requestUrl: url,
-    });
+    console.error(`[Supabase Error] DELETE ${url} failed (HTTP ${response.status}): ${text}`);
     throw new Error(`Failed to delete from ${table}: HTTP ${response.status} - ${text}`);
   }
 }
@@ -562,11 +532,7 @@ async function supabaseSoftDelete(table: string, id: string): Promise<void> {
   });
   if (!response.ok) {
     const text = await response.text().catch(() => "");
-    console.error(`[Supabase Error] Soft Delete ${url} failed`, {
-      statusCode: response.status,
-      responseBody: text,
-      requestUrl: url,
-    });
+    console.error(`[Supabase Error] Soft Delete ${url} failed (HTTP ${response.status}): ${text}`);
     throw new Error(`Failed to soft-delete from ${table}: HTTP ${response.status} - ${text}`);
   }
 }
@@ -1046,7 +1012,20 @@ function fromSupabaseContactMessage(supabaseMessage: SupabaseContactMessage): So
 export const supabaseClients = {
   get: () => supabaseGet<SupabaseClient>("clients").then(data => data.map(fromSupabaseClient)),
   create: (client: Record<string, unknown>) => supabasePost("clients", toSupabaseClient(client)),
-  update: (id: string, client: Record<string, unknown>) => supabaseUpdate("clients", id, toSupabaseClient(client)),
+  update: async (id: string, client: Record<string, unknown>) => {
+    try {
+      return await supabaseUpdate("clients", id, toSupabaseClient(client));
+    } catch {
+      const email = typeof client.email === "string" ? client.email.trim() : "";
+      if (email) {
+        const matches = await supabaseGet<SupabaseClient>("clients", { email }).catch(() => [] as SupabaseClient[]);
+        if (matches.length > 0 && matches[0].id) {
+          return await supabaseUpdate("clients", matches[0].id, toSupabaseClient(client));
+        }
+      }
+      return await supabasePost("clients", toSupabaseClient(client));
+    }
+  },
   delete: (id: string) => supabaseDelete("clients", id),
   softDelete: (id: string) => supabaseSoftDelete("clients", id),
   restore: (id: string) => supabaseRestore("clients", id),
@@ -1227,6 +1206,71 @@ export const supabaseShopCategories = {
   softDelete: (id: string) => supabaseSoftDelete("shop_categories", id),
   restore: (id: string) => supabaseRestore("shop_categories", id),
   permanentDelete: (id: string) => supabasePermanentDelete("shop_categories", id),
+};
+
+interface SupabaseShopBuyer {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  member_since?: string;
+  source_payload?: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ShopBuyer = {
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  memberSince?: string;
+};
+
+function toSupabaseShopBuyer(buyer: SourcePayload): SupabaseInsert<SupabaseShopBuyer> {
+  return {
+    full_name: String(buyer.name || ""),
+    email: String(buyer.email || ""),
+    phone: buyer.phone ? String(buyer.phone) : undefined,
+    address: buyer.address ? String(buyer.address) : undefined,
+    member_since: buyer.memberSince ? String(buyer.memberSince) : undefined,
+    source_payload: buyer,
+  };
+}
+
+function fromSupabaseShopBuyer(row: SupabaseShopBuyer): ShopBuyer {
+  const source = isSourcePayload(row.source_payload) ? row.source_payload : {};
+  return {
+    id: row.id,
+    name: row.full_name,
+    email: row.email,
+    phone: row.phone ?? (source.phone as string | undefined),
+    address: row.address ?? (source.address as string | undefined),
+    memberSince: row.member_since ?? (source.memberSince as string | undefined),
+  };
+}
+
+export const supabaseShopBuyers = {
+  get: () => supabaseGet<SupabaseShopBuyer>("shop_buyers").then((data) => data.map(fromSupabaseShopBuyer)),
+  upsert: async (buyer: SourcePayload): Promise<ShopBuyer | null> => {
+    const email = String(buyer.email || "");
+    if (!email) return null;
+    try {
+      // Try update first (by email via params), then create if not found
+      const existing = await supabaseGet<SupabaseShopBuyer>("shop_buyers", { email }).catch(() => [] as SupabaseShopBuyer[]);
+      if (existing.length > 0 && existing[0].id) {
+        const updated = (await supabaseUpdate("shop_buyers", existing[0].id, toSupabaseShopBuyer(buyer))) as unknown as SupabaseShopBuyer;
+        return fromSupabaseShopBuyer(updated);
+      }
+      const created = (await supabasePost("shop_buyers", toSupabaseShopBuyer(buyer))) as unknown as SupabaseShopBuyer;
+      return fromSupabaseShopBuyer(created);
+    } catch {
+      return null;
+    }
+  },
+  delete: (id: string) => supabaseDelete("shop_buyers", id),
 };
 
 // Unified trash utilities — used by AdminPanel

@@ -66,16 +66,7 @@ async function supabaseRequest(path: string, init: RequestInit = {}) {
         ? String((payload as { code: unknown }).code)
         : "";
 
-    console.error(`[Supabase REST Error] ${init.method || "GET"} ${url}`, {
-      status: response.status,
-      statusText: response.statusText,
-      url,
-      code,
-      message,
-      details,
-      payload,
-      rawText: text,
-    });
+    console.error(`[Supabase REST Error] ${init.method || "GET"} ${url} failed (HTTP ${response.status} ${response.statusText}): ${text || message}`);
 
     const errorObj = new Error(details ? `${message} (${details})` : message) as Error & { status?: number; code?: string };
     errorObj.status = response.status;
@@ -111,6 +102,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       if (eq && eqColumn) {
         path += `&${encodeURIComponent(eqColumn)}=eq.${encodeURIComponent(eq)}`;
       }
+
+      const reservedKeys = new Set(["select", "orderBy", "limit", "offset", "eq", "eqColumn", "includeDeleted"]);
+      searchParams.forEach((val, key) => {
+        if (!reservedKeys.has(key)) {
+          if (val.includes(".")) {
+            path += `&${encodeURIComponent(key)}=${encodeURIComponent(val)}`;
+          } else {
+            path += `&${encodeURIComponent(key)}=eq.${encodeURIComponent(val)}`;
+          }
+        }
+      });
 
       if (orderBy) {
         path += `&order=${encodeURIComponent(orderBy)}`;
@@ -185,10 +187,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       headers: { "Prefer": "return=representation" },
       body: JSON.stringify(body),
     });
+
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      return jsonError(`Record not found in ${table} matching ${idColumn} = ${id}`, 404);
+    }
     
     return NextResponse.json(Array.isArray(data) ? data[0] : data);
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "Could not update data.", 500);
+    const status = (error as { status?: number }).status || 500;
+    return jsonError(error instanceof Error ? error.message : "Could not update data.", status);
   }
 }
 

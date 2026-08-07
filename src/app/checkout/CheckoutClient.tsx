@@ -1059,7 +1059,7 @@ export default function CheckoutClient() {
             <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "20px" }}>
               Create your account before completing payment so you can log in and track your membership.
             </p>
-            <form className="credsFormInline" onSubmit={handleSaveCredentials}>
+            <form className="credsFormInline" onSubmit={handleSaveCredentials} autoComplete="off">
               <div className="formGroup">
                 <label htmlFor="username-creds-input">Username</label>
                 <input
@@ -1072,7 +1072,7 @@ export default function CheckoutClient() {
                     setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""));
                     if (credsError) setCredsError("");
                   }}
-                  autoComplete="username"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -1088,7 +1088,7 @@ export default function CheckoutClient() {
                     setEmailInput(e.target.value);
                     if (credsError) setCredsError("");
                   }}
-                  autoComplete="email"
+                  autoComplete="off"
                   required
                 />
               </div>
@@ -1103,7 +1103,7 @@ export default function CheckoutClient() {
                     placeholder="Min. 6 chars, include A-z, 0-9, symbols"
                     value={passwordInput}
                     onChange={(e) => { setPasswordInput(e.target.value); if (credsError) setCredsError(""); }}
-                    autoComplete="new-password"
+                    autoComplete="off"
                     required
                   />
                   <button type="button" className="passwordToggle" onClick={() => setShowPassword(!showPassword)} aria-label="Toggle password visibility">
@@ -1121,7 +1121,7 @@ export default function CheckoutClient() {
                     placeholder="Re-enter password"
                     value={confirmPasswordInput}
                     onChange={(e) => { setConfirmPasswordInput(e.target.value); if (credsError) setCredsError(""); }}
-                    autoComplete="new-password"
+                    autoComplete="off"
                     required
                   />
                   <button type="button" className="passwordToggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label="Toggle confirm password visibility">

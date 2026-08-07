@@ -54,6 +54,7 @@ import {
   useGymGallery,
   useGymContactMessages,
   useGymShopCategories,
+  useGymShopBuyers,
   getNextClientId,
   type Trainer,
   type BlogPost,
@@ -68,6 +69,7 @@ import {
   type ClassSchedule,
   type ContactMessage,
   type ShopCategory,
+  type ShopBuyer,
   parseScheduleTable,
   serializeScheduleTable,
   useHomePageContent,
@@ -142,6 +144,7 @@ type AdminSection =
   | "blogs"
   | "shop"
   | "shopCategories"
+  | "buyers"
   | "orders"
   | "reviews"
   | "bookings"
@@ -180,6 +183,7 @@ const navGroups = [
       { id: "shop", label: "Products", icon: <FaShoppingCart /> },
       { id: "brands", label: "Brands", icon: <FaLayerGroup /> },
       { id: "shopCategories", label: "Categories", icon: <FaImages /> },
+      { id: "buyers", label: "Buyers", icon: <FaUsers /> },
       { id: "banners", label: "Banners", icon: <FaImages /> },
       { id: "orders", label: "Orders", icon: <FaClipboardList /> },
       { id: "stock", label: "Stock Management", icon: <FaClipboardList /> },
@@ -276,6 +280,7 @@ export default function AdminPanel() {
   const [gallery, setGallery] = useGymGallery();
   const [contactMessages, setContactMessages] = useGymContactMessages();
   const [shopCategories, setShopCategories] = useGymShopCategories();
+  const [shopBuyers] = useGymShopBuyers();
   const [homePage, setHomePage] = useHomePageContent();
   const [aboutPage, setAboutPage] = useAboutPageContent();
   const { trash, loading: trashLoading, refresh: refreshTrash, setTrash } = useGymTrash();
@@ -361,6 +366,7 @@ export default function AdminPanel() {
   const filteredGallery = useMemo(() => filterItems(gallery), [gallery, filterItems]);
   const filteredContactMessages = useMemo(() => filterItems(contactMessages), [contactMessages, filterItems]);
   const filteredShopCategories = useMemo(() => filterItems(shopCategories), [shopCategories, filterItems]);
+  const filteredShopBuyers = useMemo(() => filterItems(shopBuyers), [shopBuyers, filterItems]);
   const unreadContactCount = contactMessages.filter((m) => m.status === "New").length;
   const filteredPlans = useMemo(
     () => ({
@@ -827,6 +833,12 @@ export default function AdminPanel() {
             onDelete={(c: ShopCategory) => handleSoftDelete(c, "shop_categories", "Category", "id", "label", () => {
               setShopCategories(shopCategories.filter((item) => item.label !== c.label));
             })}
+          />
+        )}
+        {active === "buyers" && (
+          <ShopBuyersManagement
+            buyers={filteredShopBuyers}
+            clients={clients}
           />
         )}
         {active === "orders" && (
@@ -2621,7 +2633,7 @@ const TRASH_TABS = [
 function TrashSection({
   trash,
   loading,
-  refresh: _refresh,
+  refresh,
   setTrash,
   addToast,
 }: {
@@ -2641,11 +2653,11 @@ function TrashSection({
       await restoreItem(item.tableName, item.id);
       setTrash((prev) => prev.filter((t) => t.id !== item.id));
       addToast(`Restored "${item.name}" successfully!`, "success");
-      // Trigger a page refresh to update active view
+      // Trigger a refresh to update active view
       setTimeout(() => {
-        window.location.reload();
+        refresh();
       }, 500);
-    } catch (_err) {
+    } catch {
       addToast("Failed to restore item.", "error");
     } finally {
       setRestoringId(null);
@@ -2658,7 +2670,7 @@ function TrashSection({
       setTrash((prev) => prev.filter((t) => t.id !== item.id));
       addToast(`Permanently deleted "${item.name}".`, "success");
       setPermanentConfirmId(null);
-    } catch (_err) {
+    } catch {
       addToast("Failed to permanently delete item.", "error");
     }
   };
@@ -3495,9 +3507,12 @@ function DeliverySlipModal({
                       style={{ width: "18px", height: "18px", accentColor: "#34d399", cursor: "pointer" }}
                     />
                     {item.image ? (
-                      <img
+                      <Image
                         src={item.image}
                         alt={item.name}
+                        width={42}
+                        height={42}
+                        unoptimized
                         style={{ width: "42px", height: "42px", objectFit: "cover", borderRadius: "6px", background: "#27272a" }}
                       />
                     ) : (
@@ -3640,9 +3655,12 @@ function OrdersManagementTable({
                         >
                           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                             {item.image ? (
-                              <img
+                              <Image
                                 src={item.image}
                                 alt={item.name}
+                                width={32}
+                                height={32}
+                                unoptimized
                                 style={{ width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px", background: "#27272a" }}
                               />
                             ) : (
@@ -5883,6 +5901,98 @@ function BannerManagement({
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ShopBuyersManagement({
+  buyers,
+  clients,
+}: {
+  buyers: ShopBuyer[];
+  clients: DemoClient[];
+}) {
+  const shopOnlyClients = clients.filter(
+    (c) => c.package?.key === "none" || c.package?.name === "No Active Plan"
+  );
+
+  const allBuyersMap = new Map<
+    string,
+    { id?: string; name: string; email: string; phone?: string; address?: string; memberSince?: string }
+  >();
+
+  shopOnlyClients.forEach((c) => {
+    if (c.email) {
+      allBuyersMap.set(c.email.toLowerCase(), {
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        phone: c.phone,
+        address: c.address,
+        memberSince: c.memberSince,
+      });
+    }
+  });
+
+  buyers.forEach((b) => {
+    if (b.email) {
+      const existing = allBuyersMap.get(b.email.toLowerCase());
+      allBuyersMap.set(b.email.toLowerCase(), {
+        ...existing,
+        id: b.id || existing?.id,
+        name: b.name || existing?.name || "Buyer",
+        email: b.email,
+        phone: b.phone || existing?.phone,
+        address: b.address || existing?.address,
+        memberSince: b.memberSince || existing?.memberSince,
+      });
+    }
+  });
+
+  const combinedBuyers = Array.from(allBuyersMap.values());
+
+  return (
+    <div className="adminPage">
+      <PanelHeader title="Shop Buyers" />
+
+      <div className="adminTableCard">
+        <table className="adminTable">
+          <thead>
+            <tr>
+              <th>Buyer Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th>Registered Date</th>
+              <th>Account Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {combinedBuyers.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", color: "#a1a1aa", padding: "32px" }}>
+                  No shop buyers recorded yet. Shop buyers appear here when users register or sign in through the shop.
+                </td>
+              </tr>
+            ) : (
+              combinedBuyers.map((b, idx) => (
+                <tr key={b.id || b.email || idx}>
+                  <td>
+                    <strong>{b.name}</strong>
+                  </td>
+                  <td>{b.email}</td>
+                  <td>{b.phone || "—"}</td>
+                  <td>{b.address || "—"}</td>
+                  <td>{b.memberSince || "Recent"}</td>
+                  <td>
+                    <Badge value="Active" className="good" />
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -24,11 +24,20 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
-    // Check login state from localStorage
+    // Check login state from localStorage — only show "My Dashboard" for active gym members
     const check = () => {
-      const hasSession = !!window.localStorage.getItem(clientStorageKey);
+      const stored = window.localStorage.getItem(clientStorageKey);
+      let isGymMember = false;
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed?.package && parsed.package.key !== "none" && parsed.package.name !== "No Active Plan") {
+            isGymMember = true;
+          }
+        } catch {}
+      }
       const hasClicked = window.localStorage.getItem("hasClickedDashboard") === "true";
-      setIsLoggedIn(hasSession && hasClicked);
+      setIsLoggedIn(isGymMember && hasClicked);
     };
     check();
     window.addEventListener("storage", check);

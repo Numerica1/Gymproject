@@ -23,8 +23,11 @@ import {
   supabaseShopCategories,
   supabaseBlogs,
   supabaseMemberships,
+  supabaseShopBuyers,
+  type ShopBuyer,
   supabaseTrash,
 } from "./supabaseClient";
+export type { ShopBuyer };
 
 // Define storage keys
 export const GYM_SETTINGS_KEY = "fitness-bhaktapur-shared-content";
@@ -44,6 +47,7 @@ export const GYM_BOOKINGS_KEY = "fitness-bhaktapur-bookings-list";
 export const GYM_GALLERY_KEY = "fitness-bhaktapur-gallery-list";
 export const GYM_CONTACT_MESSAGES_KEY = "fitness-bhaktapur-contact-messages";
 export const GYM_SHOP_CATEGORIES_KEY = "fitness-bhaktapur-shop-categories";
+export const GYM_SHOP_BUYERS_KEY = "fitness-bhaktapur-shop-buyers";
 export const GYM_HOME_PAGE_KEY = "fitness-bhaktapur-home-page";
 export const GYM_ABOUT_PAGE_KEY = "fitness-bhaktapur-about-page";
 
@@ -613,6 +617,9 @@ async function fetchGymData<T>(key: string, seed: T): Promise<T> {
       return data as T;
     } else if (key === GYM_SHOP_CATEGORIES_KEY) {
       const data = await supabaseShopCategories.get();
+      return data as T;
+    } else if (key === GYM_SHOP_BUYERS_KEY) {
+      const data = await supabaseShopBuyers.get();
       return data as T;
     } else if (key === GYM_BLOGS_KEY) {
       const data = await supabaseBlogs.get();
@@ -1256,6 +1263,12 @@ const defaultShopCategories: ShopCategory[] = [
 
 export function useGymShopCategories() {
   return useGymState<ShopCategory[]>(GYM_SHOP_CATEGORIES_KEY, defaultShopCategories);
+}
+
+const defaultShopBuyers: ShopBuyer[] = [];
+
+export function useGymShopBuyers() {
+  return useGymState<ShopBuyer[]>(GYM_SHOP_BUYERS_KEY, defaultShopBuyers);
 }
 
 export interface ScheduleRow {

@@ -36,6 +36,7 @@ import {
 import { formatCurrency } from "../data/currency";
 import type { Banner } from "../data/sharedGymContent";
 import { clientStorageKey, type DemoClient } from "../data/clientPortal";
+import { supabaseShopBuyers } from "../data/supabaseClient";
 
 type CartItem = {
   product: Product;
@@ -161,6 +162,16 @@ export default function ShopClient() {
       return;
     }
 
+    if (client.package?.key === "none" || client.package?.name === "No Active Plan") {
+      supabaseShopBuyers.upsert({
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        memberSince: client.memberSince,
+      }).catch(() => {});
+    }
+
     window.localStorage.setItem(clientStorageKey, JSON.stringify(client));
     setLoggedInClient(client);
     setAuthModalOpen(false);
@@ -247,6 +258,15 @@ export default function ShopClient() {
 
       const updatedClients = [newClient, ...clients];
       setClients(updatedClients);
+
+      // Save to shop_buyers database table since they registered via shop
+      supabaseShopBuyers.upsert({
+        name: newClient.name,
+        email: newClient.email,
+        phone: newClient.phone,
+        address: newClient.address || "",
+        memberSince: newClient.memberSince,
+      }).catch(() => {});
 
       window.localStorage.setItem(clientStorageKey, JSON.stringify(newClient));
       setLoggedInClient(newClient);
@@ -640,7 +660,7 @@ export default function ShopClient() {
               <button
                 type="button"
                 className="shopSignInBtn"
-                onClick={() => { setAuthMode("login"); setAuthError(""); setAuthModalOpen(true); }}
+                onClick={() => { setAuthMode("login"); setAuthError(""); setAuthEmail(""); setAuthPassword(""); setAuthFirstName(""); setAuthLastName(""); setAuthPhone(""); setAuthConfirmPassword(""); setShowPassword(false); setShowConfirmPassword(false); setAuthModalOpen(true); }}
                 aria-label="Sign in to your account"
                 title="Sign In / Register"
               >
@@ -1189,7 +1209,10 @@ export default function ShopClient() {
                 <p className="shopAuthSuccessSub">Logging you in…</p>
               </div>
             ) : (
-              <form onSubmit={authMode === "login" ? handleLoginSubmit : handleRegisterSubmit} autoComplete="on" className="shopAuthForm">
+              <form onSubmit={authMode === "login" ? handleLoginSubmit : handleRegisterSubmit} autoComplete="off" className="shopAuthForm">
+                {/* Hidden dummy fields — absorb Chrome autofill before it reaches the real inputs */}
+                <input type="text" name="fake-username" style={{ display: "none" }} aria-hidden="true" readOnly />
+                <input type="password" name="fake-password" style={{ display: "none" }} aria-hidden="true" readOnly />
                 {authMode === "register" && (
                   <div className="shopAuthFieldRow">
                     <div className="shopAuthField">
@@ -1200,7 +1223,9 @@ export default function ShopClient() {
                         value={authFirstName}
                         onChange={(e) => setAuthFirstName(e.target.value)}
                         required
-                        autoComplete="given-name"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={(e) => { (e.target as HTMLInputElement).readOnly = false; }}
                         placeholder="First name"
                       />
                     </div>
@@ -1212,7 +1237,9 @@ export default function ShopClient() {
                         value={authLastName}
                         onChange={(e) => setAuthLastName(e.target.value)}
                         required
-                        autoComplete="family-name"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={(e) => { (e.target as HTMLInputElement).readOnly = false; }}
                         placeholder="Last name"
                       />
                     </div>
@@ -1227,7 +1254,9 @@ export default function ShopClient() {
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     required
-                    autoComplete="email"
+                    autoComplete="off"
+                    readOnly
+                    onFocus={(e) => { (e.target as HTMLInputElement).readOnly = false; }}
                     placeholder="your@email.com"
                   />
                 </div>
@@ -1242,7 +1271,9 @@ export default function ShopClient() {
                       onChange={(e) => setAuthPhone(e.target.value)}
                       required
                       maxLength={10}
-                      autoComplete="tel"
+                      autoComplete="off"
+                      readOnly
+                      onFocus={(e) => { (e.target as HTMLInputElement).readOnly = false; }}
                       placeholder="10-digit phone number"
                     />
                   </div>
@@ -1257,7 +1288,9 @@ export default function ShopClient() {
                       value={authPassword}
                       onChange={(e) => setAuthPassword(e.target.value)}
                       required
-                      autoComplete={authMode === "login" ? "current-password" : "new-password"}
+                      autoComplete="off"
+                      readOnly
+                      onFocus={(e) => { (e.target as HTMLInputElement).readOnly = false; }}
                       placeholder={authMode === "login" ? "Your password" : "Min. 6 characters"}
                     />
                     <button type="button" className="shopAuthEyeBtn" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Hide password" : "Show password"}>
@@ -1276,7 +1309,9 @@ export default function ShopClient() {
                         value={authConfirmPassword}
                         onChange={(e) => setAuthConfirmPassword(e.target.value)}
                         required
-                        autoComplete="new-password"
+                        autoComplete="off"
+                        readOnly
+                        onFocus={(e) => { (e.target as HTMLInputElement).readOnly = false; }}
                         placeholder="Repeat password"
                       />
                       <button type="button" className="shopAuthEyeBtn" onClick={() => setShowConfirmPassword((v) => !v)} aria-label={showConfirmPassword ? "Hide password" : "Show password"}>
@@ -1303,13 +1338,13 @@ export default function ShopClient() {
                 <div className="shopAuthSwitch">
                   {authMode === "login" ? (
                     <p>Don&apos;t have an account?{" "}
-                      <button type="button" onClick={() => { setAuthMode("register"); setAuthError(""); setShowPassword(false); }}>
+                      <button type="button" onClick={() => { setAuthMode("register"); setAuthError(""); setAuthEmail(""); setAuthPassword(""); setAuthFirstName(""); setAuthLastName(""); setAuthPhone(""); setAuthConfirmPassword(""); setShowPassword(false); setShowConfirmPassword(false); }}>
                         Sign Up
                       </button>
                     </p>
                   ) : (
                     <p>Already have an account?{" "}
-                      <button type="button" onClick={() => { setAuthMode("login"); setAuthError(""); setShowPassword(false); setShowConfirmPassword(false); }}>
+                      <button type="button" onClick={() => { setAuthMode("login"); setAuthError(""); setAuthEmail(""); setAuthPassword(""); setAuthFirstName(""); setAuthLastName(""); setAuthPhone(""); setAuthConfirmPassword(""); setShowPassword(false); setShowConfirmPassword(false); }}>
                         Sign In
                       </button>
                     </p>

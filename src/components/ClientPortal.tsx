@@ -91,6 +91,11 @@ export default function ClientPortal() {
       password: latestClient.password || storedClientData?.password,
     };
 
+    if (syncedClient.package?.key === "none" || syncedClient.package?.name === "No Active Plan") {
+      router.push("/shop-portal");
+      return;
+    }
+
     if (!syncedClient.username || !syncedClient.password) {
       router.push("/login");
       return;
