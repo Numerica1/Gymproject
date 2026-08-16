@@ -799,3 +799,20 @@ create policy "Anyone can update shop categories"
 drop policy if exists "Anyone can delete shop categories" on public.shop_categories;
 create policy "Anyone can delete shop categories"
   on public.shop_categories for delete using (true);
+
+-- =============================================================
+-- 18. NEWSLETTER SUBSCRIBERS
+-- Public visitors subscribe through the server-side /api/newsletter route.
+-- RLS deliberately has no public policies: email addresses are never readable
+-- or writable directly from the browser.
+-- =============================================================
+create table if not exists public.newsletter_subscribers (
+  id         uuid        primary key default gen_random_uuid(),
+  email      text        not null,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists ux_newsletter_subscribers_email
+  on public.newsletter_subscribers (lower(email));
+
+alter table public.newsletter_subscribers enable row level security;

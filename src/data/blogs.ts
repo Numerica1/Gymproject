@@ -6,6 +6,7 @@ export interface BlogPost {
   author: string;
   category: string;
   readTime: string;
+  popular?: boolean;
   summary: string;
   content: string[];
 }

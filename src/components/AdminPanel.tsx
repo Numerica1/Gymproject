@@ -42,6 +42,7 @@ import {
   useGymClients,
   useGymTrainers,
   useGymBlogs,
+  useGymBlogCategories,
   useGymPayments,
   useGymProducts,
   useGymBrands,
@@ -74,8 +75,12 @@ import {
   serializeScheduleTable,
   useHomePageContent,
   useAboutPageContent,
+  useWhyChooseUsContent,
+  useContactCtaContent,
   type HomePageContent,
   type AboutPageContent,
+  type WhyChooseUsContent,
+  type ContactCtaContent,
   useGymTrash,
   softDeleteItem,
   restoreItem,
@@ -157,6 +162,8 @@ type AdminSection =
   | "announcements"
   | "home"
   | "about"
+  | "whyChooseUs"
+  | "contactCta"
   | "trash";
 
 // navGroups drives sidebar rendering; navItems kept for reference only
@@ -195,6 +202,8 @@ const navGroups = [
       { id: "blogs", label: "Blog Posts", icon: <FaEdit /> },
       { id: "home", label: "Home Page", icon: <FaImages /> },
       { id: "about", label: "About Us", icon: <FaImages /> },
+      { id: "whyChooseUs", label: "Why Choose Us", icon: <FaDumbbell /> },
+      { id: "contactCta", label: "Contact Us", icon: <FaPhone /> },
       { id: "announcements", label: "Announcements", icon: <FaEnvelope /> },
       { id: "gallery", label: "Gallery", icon: <FaImages /> },
       { id: "trash", label: "Trash", icon: <FaTrash /> },
@@ -268,6 +277,7 @@ export default function AdminPanel() {
   const [clients, setClients] = useGymClients();
   const [trainers, setTrainers] = useGymTrainers();
   const [blogs, setBlogs] = useGymBlogs();
+  const [blogCategories, setBlogCategories] = useGymBlogCategories();
   const [payments, setPayments] = useGymPayments();
   const [products, setProducts] = useGymProducts();
   const [brands, setBrands] = useGymBrands();
@@ -283,6 +293,8 @@ export default function AdminPanel() {
   const [shopBuyers] = useGymShopBuyers();
   const [homePage, setHomePage] = useHomePageContent();
   const [aboutPage, setAboutPage] = useAboutPageContent();
+  const [whyChooseUs, setWhyChooseUs] = useWhyChooseUsContent();
+  const [contactCta, setContactCta] = useContactCtaContent();
   const { trash, loading: trashLoading, refresh: refreshTrash, setTrash } = useGymTrash();
 
   // Toast System
@@ -731,7 +743,8 @@ export default function AdminPanel() {
         {active === "blogs" && (
           <Blogs
             blogs={filteredBlogs}
-            setBlogs={setBlogs}
+            categories={blogCategories}
+            setCategories={setBlogCategories}
             onOpenAdd={handleOpenAdd}
             onOpenEdit={handleOpenEdit}
             onDelete={(b: BlogPost) => handleSoftDelete(b, "blogs", "Blog Post", "id", "title", () => {
@@ -995,6 +1008,14 @@ export default function AdminPanel() {
           <AboutPageManager content={aboutPage} setContent={setAboutPage} />
         )}
 
+        {active === "whyChooseUs" && (
+          <WhyChooseUsManager content={whyChooseUs} setContent={setWhyChooseUs} />
+        )}
+
+        {active === "contactCta" && (
+          <ContactCtaManager content={contactCta} setContent={setContactCta} settings={settings} setSettings={setSettings} />
+        )}
+
         {active === "trash" && (
           <TrashSection
             trash={trash}
@@ -1024,6 +1045,7 @@ export default function AdminPanel() {
             clients={clients}
             brands={brands}
             shopCategories={shopCategories}
+            blogCategories={blogCategories}
             onClose={() => setModalType(null)}
             onSubmit={(payload) => {
               const currentItem = (activeItem || {}) as FormFields;
@@ -2333,16 +2355,27 @@ function Memberships({
 
 function Blogs({
   blogs,
+  categories,
+  setCategories,
   onOpenAdd,
   onOpenEdit,
   onDelete,
 }: {
   blogs: BlogPost[];
-  setBlogs: (val: BlogPost[] | ((prev: BlogPost[]) => BlogPost[])) => void;
+  categories: string[];
+  setCategories: (val: string[]) => void;
   onOpenAdd: () => void;
   onOpenEdit: (item: BlogPost) => void;
   onDelete: (blog: BlogPost) => void;
 }) {
+  const [newCategory, setNewCategory] = useState("");
+  const addCategory = () => {
+    const category = newCategory.trim();
+    if (!category || categories.some((item) => item.toLowerCase() === category.toLowerCase())) return;
+    setCategories([...categories, category]);
+    setNewCategory("");
+  };
+
   return (
     <div className="adminPage">
       <PanelHeader title="Blog Posts" action="Write New Post" onAction={onOpenAdd} />
@@ -2362,6 +2395,14 @@ function Blogs({
             <div style={{ fontSize: "0.78rem", color: "#a1a1aa", marginTop: "2px" }}>{stat.label}</div>
           </div>
         ))}
+      </div>
+
+      <div style={{ marginBottom: "24px", padding: "18px", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "10px", background: "rgba(251,191,36,0.04)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", alignItems: "flex-start", flexWrap: "wrap", marginBottom: "12px" }}>
+          <div><h3 style={{ margin: "0 0 4px", color: "#f4f4f5", fontSize: "0.95rem", textTransform: "none" }}>Client blog categories</h3><p style={{ margin: 0, color: "#a1a1aa", fontSize: "0.78rem" }}>These categories appear as filters on the client blog and are available when creating a post.</p></div>
+          <div style={{ display: "flex", gap: "8px" }}><input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCategory(); } }} placeholder="Add category" style={{ width: "150px", padding: "8px 10px", border: "1px solid #3f3f46", borderRadius: "6px", color: "#f4f4f5", background: "#09090b" }} /><button type="button" className="adminPrimaryButton" onClick={addCategory} style={{ padding: "8px 12px" }}><FaPlus /> Add</button></div>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>{categories.map((category) => <span key={category} style={{ display: "inline-flex", alignItems: "center", gap: "7px", padding: "6px 9px", borderRadius: "999px", color: "#fcd34d", background: "rgba(251,191,36,0.1)", fontSize: "0.78rem" }}>{category}<button type="button" onClick={() => setCategories(categories.filter((item) => item !== category))} aria-label={`Remove ${category} category`} title="Remove category" style={{ border: 0, padding: 0, color: "#fcd34d", background: "transparent", cursor: "pointer", lineHeight: 1 }}><FaTimes /></button></span>)}</div>
       </div>
 
       {blogs.length === 0 ? (
@@ -3049,6 +3090,49 @@ function HomePageManager({
       </form>
     </div>
   );
+}
+
+function WhyChooseUsManager({ content, setContent }: { content: WhyChooseUsContent; setContent: (value: WhyChooseUsContent) => void }) {
+  const [draft, setDraft] = useState(content);
+  const [message, setMessage] = useState("");
+  useEffect(() => setDraft(content), [content]);
+  const updateReason = (index: number, field: "title" | "text", value: string) => setDraft((current) => ({ ...current, reasons: current.reasons.map((reason, itemIndex) => itemIndex === index ? { ...reason, [field]: value } : reason) }));
+  const loadImage = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file?.type.startsWith("image/")) return; setMessage("Uploading image…"); try { const image = await uploadContentImage(file); setDraft((current) => ({ ...current, image })); setMessage("Image uploaded. Click Save & Publish to make it live."); } catch (error) { setMessage(error instanceof Error ? error.message : "Image upload failed."); } };
+  return <div className="adminPage"><PanelHeader title="Why Choose Us" /><form onSubmit={(event) => { event.preventDefault(); setContent(draft); setMessage("Why Choose Us section published successfully."); }} style={{ maxWidth: "860px" }}>
+    <div style={{ padding: "24px", border: "1px solid rgba(255,255,255,.08)", borderRadius: "14px", background: "rgba(255,255,255,.03)" }}><div className="adminFormGroup"><label>Background Image URL</label><input value={draft.image || ""} onChange={(event) => setDraft({ ...draft, image: event.target.value })} placeholder="https://..." /><label style={{ display: "inline-block", marginTop: "10px", color: "#fbbf24", cursor: "pointer" }}><FaCamera /> Upload Background Image<input type="file" accept="image/*" onChange={loadImage} style={{ display: "none" }} /></label></div><div className="adminFormGroup"><label>Section Label</label><input value={draft.eyebrow} onChange={(event) => setDraft({ ...draft, eyebrow: event.target.value })} /></div><div className="adminFormGroup"><label>Heading</label><input value={draft.heading} onChange={(event) => setDraft({ ...draft, heading: event.target.value })} /></div><h3 style={{ color: "#fbbf24", fontSize: "0.9rem", textTransform: "uppercase", margin: "24px 0 14px" }}>Benefit Cards</h3>{draft.reasons.map((reason, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "12px", marginBottom: "12px" }}><div className="adminFormGroup"><label>Title {index + 1}</label><input value={reason.title} onChange={(event) => updateReason(index, "title", event.target.value)} /></div><div className="adminFormGroup"><label>Description</label><input value={reason.text} onChange={(event) => updateReason(index, "text", event.target.value)} /></div></div>)}</div>{message && <p style={{ color: "#4ade80" }}>✓ {message}</p>}<button className="adminPrimaryButton" type="submit">Save & Publish Why Choose Us</button></form></div>;
+}
+
+async function uploadContentImage(file: File) {
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read image."));
+    reader.onerror = () => reject(new Error("Could not read image."));
+    reader.readAsDataURL(file);
+  });
+  const compressed = await compressImage(base64, 1400);
+  const formData = new FormData();
+  formData.append("file", compressed);
+  formData.append("bucket", "gym-images");
+  try {
+    const response = await fetch("/api/upload-image", { method: "POST", body: formData });
+    if (response.ok) {
+      const data = await response.json() as { url?: string };
+      if (data.url) return data.url;
+    }
+  } catch {
+    // The compressed data URL remains a working fallback when Storage is unavailable.
+  }
+  return compressed;
+}
+
+function ContactCtaManager({ content, setContent, settings, setSettings }: { content: ContactCtaContent; setContent: (value: ContactCtaContent) => void; settings: SharedGymContent; setSettings: (value: SharedGymContent) => void }) {
+  const [draft, setDraft] = useState(content);
+  const [contact, setContact] = useState({ phone: settings.phone, email: settings.email, address: settings.address });
+  const [message, setMessage] = useState("");
+  useEffect(() => { setDraft(content); setContact({ phone: settings.phone, email: settings.email, address: settings.address }); }, [content, settings]);
+  const field = (label: string, key: keyof ContactCtaContent) => <div className="adminFormGroup"><label>{label}</label><input value={draft[key]} onChange={(event) => setDraft({ ...draft, [key]: event.target.value })} /></div>;
+  const loadImage = async (event: React.ChangeEvent<HTMLInputElement>) => { const file = event.target.files?.[0]; if (!file?.type.startsWith("image/")) return; setMessage("Uploading image…"); try { const image = await uploadContentImage(file); setDraft((current) => ({ ...current, image })); setMessage("Image uploaded. Click Save & Publish to make it live."); } catch (error) { setMessage(error instanceof Error ? error.message : "Image upload failed."); } };
+  return <div className="adminPage"><PanelHeader title="Contact Us Section" /><form onSubmit={(event) => { event.preventDefault(); setContent(draft); setSettings({ ...settings, ...contact }); setMessage("Contact Us section published successfully."); }} style={{ maxWidth: "760px" }}><div style={{ padding: "24px", border: "1px solid rgba(255,255,255,.08)", borderRadius: "14px", background: "rgba(255,255,255,.03)" }}><h3 style={{ color: "#fbbf24", fontSize: "0.9rem", textTransform: "uppercase", marginBottom: "16px" }}>Call to Action</h3><div className="adminFormGroup"><label>Background Image URL</label><input value={draft.image || ""} onChange={(event) => setDraft({ ...draft, image: event.target.value })} placeholder="https://..." /><label style={{ display: "inline-block", marginTop: "10px", color: "#fbbf24", cursor: "pointer" }}><FaCamera /> Upload Background Image<input type="file" accept="image/*" onChange={loadImage} style={{ display: "none" }} /></label></div>{field("Label", "eyebrow")}{field("Heading", "heading")}<div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>{field("Join Button", "joinLabel")}{field("Contact Button", "contactLabel")}{field("Call Button", "callLabel")}</div><h3 style={{ color: "#fbbf24", fontSize: "0.9rem", textTransform: "uppercase", margin: "24px 0 16px" }}>Contact Details</h3>{(["phone", "email", "address"] as const).map((key) => <div className="adminFormGroup" key={key}><label>{key.charAt(0).toUpperCase() + key.slice(1)}</label><input value={contact[key]} onChange={(event) => setContact({ ...contact, [key]: event.target.value })} /></div>)}</div>{message && <p style={{ color: "#4ade80" }}>✓ {message}</p>}<button className="adminPrimaryButton" type="submit">Save & Publish Contact Us</button></form></div>;
 }
 
 function AboutPageManager({
@@ -3882,6 +3966,7 @@ interface FormFields {
   date?: string;
   author?: string;
   readTime?: string;
+  popular?: boolean;
   summary?: string;
   content?: string | string[];
   slug?: string;
@@ -3943,6 +4028,7 @@ function ModalForm({
   clients = [],
   brands = [],
   shopCategories = [],
+  blogCategories = [],
   onClose,
   onSubmit,
 }: {
@@ -3954,6 +4040,7 @@ function ModalForm({
   clients?: DemoClient[];
   brands?: Brand[];
   shopCategories?: ShopCategory[];
+  blogCategories?: string[];
   onClose: () => void;
   onSubmit: (payload: FormFields) => void;
 }) {
@@ -3997,7 +4084,7 @@ function ModalForm({
       };
     }
     if (section === "blogs") {
-      return { title: "", category: "Fitness", author: "Admin", date: new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }), summary: "", content: "", image: "/images/pullup-training.jpg" };
+      return { title: "", category: blogCategories[0] || "Fitness", author: "Admin", date: new Date().toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }), summary: "", content: "", image: "/images/pullup-training.jpg", popular: false };
     }
     if (section === "payments") {
       return { txnId: `TXN${Math.floor(1000 + Math.random() * 9000)}`, member: "", amount: "Rs 4,900", method: "Card", status: "Paid", date: new Date().toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" }) };
@@ -4527,7 +4614,10 @@ function ModalForm({
                 </div>
                 <div className="adminFormGroup">
                   <label>Category</label>
-                  <input name="category" value={fields.category || ""} onChange={handleChange} required />
+                  <select name="category" value={fields.category || ""} onChange={handleChange} required>
+                    {!blogCategories.includes(String(fields.category || "")) && fields.category && <option value={String(fields.category)}>{String(fields.category)}</option>}
+                    {blogCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
                 </div>
                 <div className="adminFormGroup">
                   <label>Author</label>
@@ -4588,6 +4678,10 @@ function ModalForm({
                   <label>Publish Date</label>
                   <input name="date" value={fields.date || ""} onChange={handleChange} required />
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: "9px", marginTop: "4px", color: "#f4f4f5", cursor: "pointer", fontSize: "0.9rem" }}>
+                  <input type="checkbox" name="popular" checked={Boolean(fields.popular)} onChange={handleChange} style={{ width: "16px", height: "16px", accentColor: "#fbbf24" }} />
+                  Show this post in Popular Posts on the client blog
+                </label>
               </>
             )}
 

@@ -13,7 +13,7 @@ export default function Home() {
   return (
     <>
       <Navbar />
-      <main>
+      <main className="homeMain">
         <Hero />
         <Features />
         <Gallery />

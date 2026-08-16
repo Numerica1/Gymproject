@@ -34,6 +34,7 @@ export const GYM_SETTINGS_KEY = "fitness-bhaktapur-shared-content";
 export const GYM_CLIENTS_KEY = "fitness-bhaktapur-clients-list";
 export const GYM_TRAINERS_KEY = "fitness-bhaktapur-trainers-list";
 export const GYM_BLOGS_KEY = "fitness-bhaktapur-blogs-list";
+export const GYM_BLOG_CATEGORIES_KEY = "fitness-bhaktapur-blog-categories";
 export const GYM_PAYMENTS_KEY = "fitness-bhaktapur-payments-list";
 export const GYM_PRODUCTS_KEY = "fitness-bhaktapur-products-list";
 export const GYM_BRANDS_KEY = "fitness-bhaktapur-brands-list";
@@ -50,6 +51,8 @@ export const GYM_SHOP_CATEGORIES_KEY = "fitness-bhaktapur-shop-categories";
 export const GYM_SHOP_BUYERS_KEY = "fitness-bhaktapur-shop-buyers";
 export const GYM_HOME_PAGE_KEY = "fitness-bhaktapur-home-page";
 export const GYM_ABOUT_PAGE_KEY = "fitness-bhaktapur-about-page";
+export const GYM_WHY_CHOOSE_US_KEY = "fitness-bhaktapur-why-choose-us";
+export const GYM_CONTACT_CTA_KEY = "fitness-bhaktapur-contact-cta";
 
 // Change event name for local tab notifications
 export const GYM_DATA_CHANGED_EVENT = "fitness-bhaktapur-data-changed";
@@ -359,6 +362,8 @@ export type ShopCategory = {
 
 // Default Seeds
 const defaultTrainers: Trainer[] = [];
+
+export const defaultBlogCategories = ["Workout", "Nutrition", "Lifestyle", "News"];
 
 const defaultPayments: PaymentLog[] = [];
 
@@ -1167,6 +1172,22 @@ export function useAboutPageContent() {
   return useGymState<AboutPageContent>(GYM_ABOUT_PAGE_KEY, defaultAboutPageContent);
 }
 
+export type WhyChooseUsContent = { eyebrow: string; heading: string; image: string; reasons: { title: string; text: string }[] };
+export const defaultWhyChooseUsContent: WhyChooseUsContent = {
+  eyebrow: "Why Choose Us", heading: "Build Your Body, Build Your Confidence", image: "/images/why-choose-us.jpg",
+  reasons: [
+    { title: "Modern Equipment", text: "Train with the latest high-quality equipment." },
+    { title: "Certified Trainers", text: "Expert trainers to guide, motivate and support you." },
+    { title: "Personalized Plans", text: "Custom workout and diet plans for your goals." },
+    { title: "Friendly Environment", text: "A welcoming community that keeps you inspired." },
+  ],
+};
+export function useWhyChooseUsContent() { return useGymState<WhyChooseUsContent>(GYM_WHY_CHOOSE_US_KEY, defaultWhyChooseUsContent); }
+
+export type ContactCtaContent = { eyebrow: string; heading: string; image: string; joinLabel: string; contactLabel: string; callLabel: string };
+export const defaultContactCtaContent: ContactCtaContent = { eyebrow: "Ready to Transform Your Body?", heading: "Join our community and start achieving your fitness goals today.", image: "/images/kettlebell.jpg", joinLabel: "Join Now", contactLabel: "Contact Us", callLabel: "Call Now" };
+export function useContactCtaContent() { return useGymState<ContactCtaContent>(GYM_CONTACT_CTA_KEY, defaultContactCtaContent); }
+
 export function useGymClients() {
   return useGymState<DemoClient[]>(GYM_CLIENTS_KEY, demoClients);
 }
@@ -1177,6 +1198,10 @@ export function useGymTrainers() {
 
 export function useGymBlogs() {
   return useGymState<BlogPost[]>(GYM_BLOGS_KEY, blogPosts);
+}
+
+export function useGymBlogCategories() {
+  return useGymState<string[]>(GYM_BLOG_CATEGORIES_KEY, defaultBlogCategories);
 }
 
 export function useGymPayments() {
@@ -1350,4 +1375,3 @@ export function useGymTrash() {
 
   return { trash, loading, refresh: fetchTrash, setTrash };
 }
-

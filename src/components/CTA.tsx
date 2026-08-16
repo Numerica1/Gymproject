@@ -12,7 +12,7 @@ import {
 } from "react-icons/fa6";
 import ContactForm from "./ContactForm";
 
-import { useGymSettings } from "../data/gymData";
+import { useContactCtaContent, useGymSettings } from "../data/gymData";
 
 interface CTAProps {
   isPageHeader?: boolean;
@@ -38,13 +38,14 @@ export default function CTA({ isPageHeader = false }: CTAProps) {
   const [showForm, setShowForm] = useState(false);
   const Heading = isPageHeader ? "h1" : "h2";
   const [content] = useGymSettings();
+  const [ctaContent] = useContactCtaContent();
 
   if (showForm) {
     return <ContactForm />;
   }
 
   return (
-    <section id="contact" className="contact">
+    <section id="contact" className="contact" style={{ backgroundImage: `linear-gradient(90deg, rgba(17, 17, 17, 0.92), rgba(17, 17, 17, 0.76)), url("${ctaContent.image || "/images/kettlebell.jpg"}")` }}>
       {/* Read ?form=true from URL safely inside a Suspense boundary */}
       <Suspense fallback={null}>
         <CTASearchParamsReader onFormParam={() => setShowForm(true)} />
@@ -52,16 +53,16 @@ export default function CTA({ isPageHeader = false }: CTAProps) {
 
       <div>
         <p className="eyebrow">
-          <FaArrowRight /> Ready to Transform Your Body?
+          <FaArrowRight /> {ctaContent.eyebrow}
         </p>
-        <Heading>Join our community and start achieving your fitness goals today.</Heading>
+        <Heading>{ctaContent.heading}</Heading>
         <div className="heroActions compact">
           <Link
             className="primaryButton"
             href="/join"
             id="cta-join-button"
           >
-            Join Now <FaArrowRight />
+            {ctaContent.joinLabel} <FaArrowRight />
           </Link>
           <button
             type="button"
@@ -70,7 +71,7 @@ export default function CTA({ isPageHeader = false }: CTAProps) {
             onClick={() => setShowForm(true)}
             style={{ cursor: "pointer", border: "1px solid rgba(255, 255, 255, 0.42)", background: "transparent" }}
           >
-            Contact Us
+            {ctaContent.contactLabel}
           </button>
         </div>
       </div>
@@ -92,7 +93,7 @@ export default function CTA({ isPageHeader = false }: CTAProps) {
           href={`tel:${content.phone.replace(/\s+/g, "")}`}
           id="cta-call-button"
         >
-          Call Now <FaArrowRight />
+          {ctaContent.callLabel} <FaArrowRight />
         </a>
       </div>
     </section>
