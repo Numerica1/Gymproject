@@ -36,6 +36,10 @@ import {
   FaPhone,
   FaMapMarkerAlt,
   FaEye,
+  FaChevronDown,
+  FaFileExcel,
+  FaFilePdf,
+  FaPrint,
 } from "react-icons/fa";
 import {
   useGymSettings,
@@ -270,6 +274,9 @@ function fixedMembershipSessions(planKey?: string, planName?: string, fallback =
 export default function AdminPanel() {
   const [active, setActive] = useState<AdminSection>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openNavGroups, setOpenNavGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(navGroups.map((group) => [group.title, true]))
+  );
   const [searchQuery, setSearchQuery] = useState("");
 
   // Load dynamic data hooks
@@ -581,33 +588,53 @@ export default function AdminPanel() {
         </div>
 
         <div className="adminNavContainer">
-          {navGroups.map((group, gIdx) => (
-            <div key={gIdx} className="adminNavSection">
-              <span className="adminNavHeader">{group.title}</span>
-              <nav className="adminNav" aria-label={`${group.title} navigation`}>
-                {group.items.map((item) => {
-                  const isTrash = item.id === "trash";
-                  const badgeCount = isTrash ? trash.length : 0;
-                  return (
-                    <button
-                      key={item.id}
-                      className={active === item.id ? "active" : ""}
-                      onClick={() => setSection(item.id as AdminSection)}
-                      style={{ position: "relative" }}
-                    >
-                      {item.icon}
-                      <span>{item.label}</span>
-                      {isTrash && badgeCount > 0 && (
-                        <span className="adminNotificationBadge" style={{ right: "12px", top: "50%", transform: "translateY(-50%)", background: "#fcd34d", color: "#18181b", fontWeight: "bold" }}>
-                          {badgeCount}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </nav>
-            </div>
-          ))}
+          {navGroups.map((group, gIdx) => {
+            const isCollapsible = group.title !== "MAIN";
+            const isOpen = !isCollapsible || openNavGroups[group.title];
+
+            return (
+              <div key={gIdx} className="adminNavSection">
+                {isCollapsible ? (
+                  <button
+                    type="button"
+                    className="adminNavHeader"
+                    aria-expanded={isOpen}
+                    aria-controls={`admin-nav-group-${gIdx}`}
+                    onClick={() => setOpenNavGroups((groups) => ({ ...groups, [group.title]: !groups[group.title] }))}
+                  >
+                    <span>{group.title}</span>
+                    <FaChevronDown aria-hidden="true" />
+                  </button>
+                ) : (
+                  <span className="adminNavHeader adminNavHeaderStatic">{group.title}</span>
+                )}
+              {isOpen && (
+                <nav id={`admin-nav-group-${gIdx}`} className="adminNav" aria-label={`${group.title} navigation`}>
+                  {group.items.map((item) => {
+                    const isTrash = item.id === "trash";
+                    const badgeCount = isTrash ? trash.length : 0;
+                    return (
+                      <button
+                        key={item.id}
+                        className={active === item.id ? "active" : ""}
+                        onClick={() => setSection(item.id as AdminSection)}
+                        style={{ position: "relative" }}
+                      >
+                        {item.icon}
+                        <span>{item.label}</span>
+                        {isTrash && badgeCount > 0 && (
+                          <span className="adminNotificationBadge" style={{ right: "12px", top: "50%", transform: "translateY(-50%)", background: "#fcd34d", color: "#18181b", fontWeight: "bold" }}>
+                            {badgeCount}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="adminSidebarFooter">
@@ -756,6 +783,14 @@ export default function AdminPanel() {
         {/* Settings Section */}
         {active === "settings" && (
           <Settings settings={settings} setSettings={setSettings} />
+        )}
+
+        {active === "reports" && (
+          <Reports
+            gymName={settings.gymName || "Fitness Gym"}
+            payments={payments}
+            orders={orders}
+          />
         )}
 
         {/* Operational Sections */}
@@ -1203,6 +1238,123 @@ export default function AdminPanel() {
 }
 
 // Subcomponents
+
+function Reports({ gymName, payments, orders }: {
+  gymName: string;
+  payments: PaymentLog[];
+  orders: OrderLog[];
+}) {
+  const [filters, setFilters] = useState({ start: "2025-05-12", end: "2025-06-12", type: "All reports", status: "All statuses" });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const [generatedAt, setGeneratedAt] = useState("");
+  const dateLabel = (start: string, end: string) => {
+    const format = (value: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+    return `${format(start)} - ${format(end)}`;
+  };
+  const resetFilters = () => {
+    const today = new Date();
+    const toDateInputValue = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+    const defaults = {
+      start: `${today.getFullYear()}-01-01`,
+      end: toDateInputValue(today),
+      type: "All reports",
+      status: "All statuses",
+    };
+    setFilters(defaults);
+    setAppliedFilters(defaults);
+  };
+  const printReport = () => {
+    setGeneratedAt(new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }));
+    window.setTimeout(() => window.print(), 0);
+  };
+
+  const parseDate = (value: string) => {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const inDateRange = (value: string) => {
+    const date = parseDate(value);
+    return !date || (date >= new Date(`${appliedFilters.start}T00:00:00`) && date <= new Date(`${appliedFilters.end}T23:59:59`));
+  };
+  const matchesStatus = (value?: string) => appliedFilters.status === "All statuses" || value?.toLowerCase() === appliedFilters.status.toLowerCase() || (appliedFilters.status === "Completed" && /paid|complete/i.test(value || ""));
+  const parseAmount = (value: string) => Number(value.replace(/[^\d.]/g, "")) || 0;
+  const filteredPayments = payments.filter((payment) => inDateRange(payment.date) && matchesStatus(payment.status));
+  const filteredOrders = orders.filter((order) => inDateRange(order.date) && matchesStatus(order.status));
+  const reportRevenue = filteredPayments.reduce((sum, payment) => sum + parseAmount(payment.amount), 0) + filteredOrders.reduce((sum, order) => sum + parseAmount(order.total), 0);
+  const allTransactions = [
+    ...filteredPayments.map((payment) => ({ date: payment.date, customer: payment.member, type: "Membership", amount: payment.amount, quantity: 1, method: payment.paymentMethod || payment.method || "—", status: /paid|complete/i.test(payment.status) ? "Completed" : payment.status })),
+    ...filteredOrders.map((order) => ({ date: order.date, customer: order.customer, type: "Product Sale", amount: order.total, quantity: order.cartItems?.reduce((sum, item) => sum + item.quantity, 0) || 1, method: order.paymentMethod || order.payment || "—", status: /paid|complete/i.test(order.status) ? "Completed" : order.status })),
+  ].sort((first, second) => (parseDate(second.date)?.getTime() || 0) - (parseDate(first.date)?.getTime() || 0));
+  const transactions = allTransactions.slice(0, 8);
+  const metrics = [
+    { label: "Total Sales", value: allTransactions.length.toLocaleString(), note: "Transactions in selected period", icon: <FaShoppingCart />, tone: "members" },
+    { label: "Total Revenue", value: formatCurrency(reportRevenue), note: "Payments and shop orders", icon: <FaWallet />, tone: "revenue" },
+    { label: "Total Orders", value: filteredOrders.length.toLocaleString(), note: "Shop orders in selected period", icon: <FaClipboardList />, tone: "bookings" },
+  ];
+  const monthKey = (value: string) => {
+    const date = parseDate(value);
+    return date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}` : null;
+  };
+  const monthLabel = (key: string) => new Intl.DateTimeFormat("en-US", { month: "short" }).format(new Date(`${key}-01T00:00:00`));
+  const relevantDates = [...filteredPayments.map((payment) => payment.date), ...filteredOrders.map((order) => order.date)].map(monthKey).filter((key): key is string => Boolean(key));
+  const trendMonths = [...new Set(relevantDates)].sort().slice(-6);
+  const revenueTrend = trendMonths.map((month) => [month, filteredPayments.filter((payment) => monthKey(payment.date) === month).reduce((sum, payment) => sum + parseAmount(payment.amount), 0) + filteredOrders.filter((order) => monthKey(order.date) === month).reduce((sum, order) => sum + parseAmount(order.total), 0)] as const);
+  const maxRevenue = Math.max(...revenueTrend.map(([, amount]) => amount), 1);
+
+  return (
+    <div className="adminPage reportsPage">
+      <div className="reportsPrintMasthead">
+        <strong>{gymName}</strong>
+        <span>Gym Performance Report</span>
+      </div>
+      <div className="reportsHeader">
+        <div>
+          <h1>Reports</h1>
+          <p>View your gym&apos;s sales and revenue overview</p>
+        </div>
+        <div className="reportsActions adminNoPrint">
+          <button type="button" className="reportsSecondaryButton reportsExportButton" onClick={() => window.alert("PDF export can be connected here when a PDF service is available.")}><FaFilePdf /> Export PDF</button>
+          <button type="button" className="reportsSecondaryButton reportsExportButton" onClick={() => window.alert("Excel export can be connected here when an export service is available.")}><FaFileExcel /> Export Excel</button>
+        </div>
+      </div>
+
+      <section className="reportsFilters adminNoPrint" aria-label="Report filters">
+        <div className="reportsDatePicker"><FaCalendarAlt /><input aria-label="Start date" type="date" value={filters.start} onChange={(event) => setFilters({ ...filters, start: event.target.value })} /><span>–</span><input aria-label="End date" type="date" value={filters.end} onChange={(event) => setFilters({ ...filters, end: event.target.value })} /></div>
+        <div className="reportsFilterButtons"><button type="button" className="adminPrimaryButton" onClick={() => setAppliedFilters(filters)}>Filter</button><button type="button" className="reportsResetButton" onClick={resetFilters}>Reset</button></div>
+      </section>
+
+      <div className="reportsPrintDetails">
+        <span><b>Date range:</b> {dateLabel(appliedFilters.start, appliedFilters.end)}</span>
+        <span><b>Filters:</b> {appliedFilters.type} · {appliedFilters.status}</span>
+        <span><b>Generated:</b> {generatedAt || "Ready to print"}</span>
+      </div>
+
+      <section className="reportsMetrics">
+        {metrics.map((metric) => <article key={metric.label} className={`reportsMetric reportsMetric-${metric.tone}`}><span className="reportsMetricIcon">{metric.icon}</span><div><p>{metric.label}</p><strong>{metric.value}</strong><small>{metric.note}</small></div></article>)}
+      </section>
+
+      <section className="reportsCharts">
+        <article className="adminWidget reportsChartCard reportsGrowthChart">
+          <div className="adminWidgetTitle"><div><h2>Revenue Overview</h2><span>NPR</span></div></div>
+          {revenueTrend.length ? <div className="reportsLineChart" aria-label="Revenue overview chart"><svg viewBox="0 0 600 220" role="img"><path d="M20 180 H580 M20 125 H580 M20 70 H580 M20 15 H580" className="reportsGridLine" /><polyline points={revenueTrend.map(([, amount], index) => `${30 + (trendMonths.length > 1 ? (540 * index) / (trendMonths.length - 1) : 270)},${180 - (amount / maxRevenue) * 140}`).join(" ")} className="reportsLine" />{revenueTrend.map(([, amount], index) => <circle key={trendMonths[index]} cx={30 + (trendMonths.length > 1 ? (540 * index) / (trendMonths.length - 1) : 270)} cy={180 - (amount / maxRevenue) * 140} r="5" />)}</svg><div className="reportsChartLabels">{revenueTrend.map(([month]) => <span key={month}>{monthLabel(month)}</span>)}</div></div> : <p className="reportsEmpty">No revenue data for the selected period.</p>}
+        </article>
+        <article className="adminWidget reportsChartCard">
+          <div className="adminWidgetTitle"><div><h2>Sales Overview</h2><span>Transactions by month</span></div></div>
+          {revenueTrend.length ? <div className="reportsBarChart" aria-label="Sales overview bar chart">{trendMonths.map((month) => { const sales = transactions.filter((transaction) => monthKey(transaction.date) === month).length; const maxSales = Math.max(...trendMonths.map((currentMonth) => transactions.filter((transaction) => monthKey(transaction.date) === currentMonth).length), 1); return <div key={month}><i style={{ height: `${Math.max((sales / maxSales) * 100, 2)}%` }} /><span>{monthLabel(month)}</span></div>; })}</div> : <p className="reportsEmpty">No sales data for the selected period.</p>}
+        </article>
+      </section>
+
+      <section className="reportsLowerGrid">
+        <article className="adminWidget reportsTransactions"><div className="adminWidgetTitle"><div><h2>Sales Summary</h2></div><button type="button" className="adminPrimaryButton reportsPrintButton adminNoPrint" onClick={printReport}><FaPrint /> Print Report</button></div><div className="adminTableWrap"><table className="adminTable"><thead><tr>{["Date", "Description", "Type", "Sales (Qty)", "Revenue (NPR)", "Payment Method", "Status"].map((heading) => <th key={heading}>{heading}</th>)}</tr></thead><tbody>{transactions.length ? <>{transactions.map((row) => <tr key={row.date + row.customer + row.type}><td>{row.date}</td><td>{row.customer}</td><td>{row.type}</td><td>{row.quantity}</td><td>{row.amount}</td><td>{row.method}</td><td><span className={`adminBadge ${/complete|paid/i.test(row.status) ? "good" : /pending/i.test(row.status) ? "warn" : "bad"}`}>{row.status}</span></td></tr>)}<tr className="reportsTotalRow"><td colSpan={3}>Total</td><td>{transactions.reduce((sum, row) => sum + row.quantity, 0)}</td><td>{formatCurrency(reportRevenue)}</td><td colSpan={2} /></tr></> : <tr><td colSpan={7} className="reportsTableEmpty">No transactions match the selected filters.</td></tr>}</tbody></table></div></article>
+      </section>
+    </div>
+  );
+}
 
 function Dashboard({
   clients,
@@ -3145,17 +3297,20 @@ function AboutPageManager({
   const [draft, setDraft] = useState<AboutPageContent>(content);
   const [message, setMessage] = useState("");
   const [imageStatus, setImageStatus] = useState<Record<string, string>>({});
+  const [isDirty, setIsDirty] = useState(false);
   const draftRef = useRef<AboutPageContent>(content);
 
   useEffect(() => {
+    if (isDirty) return;
     draftRef.current = content;
     setDraft(content);
-  }, [content]);
+  }, [content, isDirty]);
 
   const updateField = (field: keyof AboutPageContent, value: string) => {
     const next = { ...draftRef.current, [field]: value };
     draftRef.current = next;
     setDraft(next);
+    setIsDirty(true);
     return next;
   };
 
@@ -3179,16 +3334,22 @@ function AboutPageManager({
       } catch { /* fallback to compressed */ }
       const next = updateField(field, imageUrl);
       setContent(next);
+      setIsDirty(false);
       setImageStatus((cur) => ({ ...cur, [field]: "Photo saved. Live on the About Us page." }));
     };
     reader.readAsDataURL(file);
   };
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
+  const publishAboutPage = () => {
     setContent(draftRef.current);
+    setIsDirty(false);
     setMessage("About Us page published successfully.");
     window.setTimeout(() => setMessage(""), 3000);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    publishAboutPage();
   };
 
   const imageEditor = (field: "introImage" | "missionImageOne" | "missionImageTwo", label: string) => (
@@ -3228,30 +3389,26 @@ function AboutPageManager({
 
   return (
     <div className="adminPage">
-      <PanelHeader title="About Us Page Content" />
+      <PanelHeader
+        title={`About Us Page Content${isDirty ? " • Unsaved changes" : ""}`}
+        action="Save & Publish"
+        onAction={publishAboutPage}
+      />
       <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "28px", maxWidth: "860px" }}>
 
-        {/* Intro Section */}
+        {/* Hero Section */}
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
           <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            📖 Intro Section
+            📖 Hero Section
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
             <div className="adminFormGroup">
-              <label>Eyebrow / Tag Line</label>
-              <input value={draft.introEyebrow} onChange={(e) => updateField("introEyebrow", e.target.value)} placeholder="e.g. Welcome to Gym Fitness Bhaktapur" />
+              <label>Hero Title</label>
+              <input value={draft.heroTitle} onChange={(e) => updateField("heroTitle", e.target.value)} placeholder="e.g. ABOUT US" />
             </div>
             <div className="adminFormGroup">
-              <label>Main Title (use \n for line breaks)</label>
-              <input value={draft.introTitle} onChange={(e) => updateField("introTitle", e.target.value)} placeholder="e.g. Transform Your Body,\nTransform Your Life" />
-            </div>
-            <div className="adminFormGroup">
-              <label>Body Paragraph One</label>
-              <textarea value={draft.introBodyOne} onChange={(e) => updateField("introBodyOne", e.target.value)} rows={3} style={{ resize: "vertical" }} />
-            </div>
-            <div className="adminFormGroup">
-              <label>Body Paragraph Two</label>
-              <textarea value={draft.introBodyTwo} onChange={(e) => updateField("introBodyTwo", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+              <label>Hero Description</label>
+              <textarea value={draft.heroBody} onChange={(e) => updateField("heroBody", e.target.value)} rows={3} style={{ resize: "vertical" }} />
             </div>
             <div>
               <div style={{ color: "#a1a1aa", fontSize: "0.82rem", fontWeight: 600, marginBottom: "10px" }}>Intro Image</div>
@@ -3260,32 +3417,68 @@ function AboutPageManager({
           </div>
         </div>
 
-        {/* Mission Section */}
+        {/* Mission and Vision */}
         <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
           <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            🎯 Mission Section
+            🎯 Mission, Vision & Motto
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px" }}>
             <div className="adminFormGroup">
-              <label>Mission Heading</label>
-              <input value={draft.missionHeading} onChange={(e) => updateField("missionHeading", e.target.value)} placeholder="e.g. Our Mission" />
+              <label>Mission Title</label>
+              <input value={draft.missionTitle} onChange={(e) => updateField("missionTitle", e.target.value)} placeholder="e.g. OUR MISSION" />
             </div>
             <div className="adminFormGroup">
-              <label>Mission Paragraph One</label>
-              <textarea value={draft.missionBodyOne} onChange={(e) => updateField("missionBodyOne", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+              <label>Mission Description</label>
+              <textarea value={draft.missionBody} onChange={(e) => updateField("missionBody", e.target.value)} rows={3} style={{ resize: "vertical" }} />
             </div>
             <div className="adminFormGroup">
-              <label>Mission Paragraph Two</label>
-              <textarea value={draft.missionBodyTwo} onChange={(e) => updateField("missionBodyTwo", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+              <label>Vision Title</label>
+              <input value={draft.visionTitle} onChange={(e) => updateField("visionTitle", e.target.value)} placeholder="e.g. OUR VISION" />
+            </div>
+            <div className="adminFormGroup">
+              <label>Vision Description</label>
+              <textarea value={draft.visionBody} onChange={(e) => updateField("visionBody", e.target.value)} rows={3} style={{ resize: "vertical" }} />
+            </div>
+            <div className="adminFormGroup">
+              <label>Motto (use Enter for line breaks)</label>
+              <textarea value={draft.mottoText} onChange={(e) => updateField("mottoText", e.target.value)} rows={3} style={{ resize: "vertical" }} />
             </div>
             <div>
-              <div style={{ color: "#a1a1aa", fontSize: "0.82rem", fontWeight: 600, marginBottom: "10px" }}>Mission Images</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                {imageEditor("missionImageOne", "Mission Photo 1")}
-                {imageEditor("missionImageTwo", "Mission Photo 2")}
-              </div>
+              <div style={{ color: "#a1a1aa", fontSize: "0.82rem", fontWeight: 600, marginBottom: "10px" }}>Motto Image</div>
+              {imageEditor("missionImageTwo", "Motto Photo")}
             </div>
           </div>
+        </div>
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>⭐ Values</h3>
+          <div className="adminFormGroup"><label>Values Title</label><input value={draft.valuesTitle} onChange={(e) => updateField("valuesTitle", e.target.value)} /></div>
+          {([ ["qualityTitle", "qualityBody", "Quality"], ["commitmentTitle", "commitmentBody", "Commitment"], ["communityTitle", "communityBody", "Community"], ["integrityTitle", "integrityBody", "Integrity"] ] as const).map(([titleKey, bodyKey, label]) => (
+            <div key={titleKey} style={{ paddingTop: "16px", marginTop: "16px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+              <div className="adminFormGroup"><label>{label} Title</label><input value={draft[titleKey]} onChange={(e) => updateField(titleKey, e.target.value)} /></div>
+              <div className="adminFormGroup"><label>{label} Description</label><textarea value={draft[bodyKey]} onChange={(e) => updateField(bodyKey, e.target.value)} rows={2} style={{ resize: "vertical" }} /></div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>📊 Statistics</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "16px" }}>
+            {([ ["membersStat", "membersLabel", "Happy Members"], ["trainersStat", "trainersLabel", "Expert Trainers"], ["classesStat", "classesLabel", "Weekly Classes"], ["yearsStat", "yearsLabel", "Years of Excellence"] ] as const).map(([numberKey, labelKey, label]) => (
+              <div key={numberKey} style={{ padding: "14px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px" }}>
+                <div className="adminFormGroup"><label>{label} Number</label><input value={draft[numberKey]} onChange={(e) => updateField(numberKey, e.target.value)} /></div>
+                <div className="adminFormGroup"><label>{label} Label</label><input value={draft[labelKey]} onChange={(e) => updateField(labelKey, e.target.value)} /></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "14px", padding: "24px" }}>
+          <h3 style={{ color: "#fbbf24", fontSize: "0.9rem", fontWeight: 700, marginBottom: "20px", textTransform: "uppercase", letterSpacing: "0.08em" }}>✓ Join Call to Action</h3>
+          <div className="adminFormGroup"><label>Heading</label><input value={draft.ctaHeading} onChange={(e) => updateField("ctaHeading", e.target.value)} /></div>
+          <div className="adminFormGroup"><label>Description</label><textarea value={draft.ctaBody} onChange={(e) => updateField("ctaBody", e.target.value)} rows={2} style={{ resize: "vertical" }} /></div>
+          <div className="adminFormGroup"><label>Button Label</label><input value={draft.ctaButtonLabel} onChange={(e) => updateField("ctaButtonLabel", e.target.value)} /></div>
+          <div className="adminFormGroup"><label>Button Link</label><input value={draft.ctaButtonLink} onChange={(e) => updateField("ctaButtonLink", e.target.value)} placeholder="/join" /></div>
         </div>
 
         {message && (
@@ -3293,11 +3486,6 @@ function AboutPageManager({
             ✓ {message}
           </div>
         )}
-        <div>
-          <button className="adminPrimaryButton" type="submit" style={{ padding: "12px 32px", fontSize: "0.95rem" }}>
-            Save & Publish About Us Page
-          </button>
-        </div>
       </form>
     </div>
   );

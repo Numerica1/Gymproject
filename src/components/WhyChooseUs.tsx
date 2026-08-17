@@ -3,29 +3,6 @@
 import { FaDumbbell, FaUserCheck, FaClipboardList, FaUsers } from "react-icons/fa6";
 import { useWhyChooseUsContent } from "../data/gymData";
 
-const reasons = [
-  {
-    icon: <FaDumbbell />,
-    title: "Modern Equipment",
-    text: "Train with the latest high-quality equipment.",
-  },
-  {
-    icon: <FaUserCheck />,
-    title: "Certified Trainers",
-    text: "Expert trainers to guide, motivate and support you.",
-  },
-  {
-    icon: <FaClipboardList />,
-    title: "Personalized Plans",
-    text: "Custom workout and diet plans for your goals.",
-  },
-  {
-    icon: <FaUsers />,
-    title: "Friendly Environment",
-    text: "A welcoming community that keeps you inspired.",
-  },
-];
-
 export default function WhyChooseUs() {
   const [content] = useWhyChooseUsContent();
   const icons = [<FaDumbbell key="equipment" />, <FaUserCheck key="trainers" />, <FaClipboardList key="plans" />, <FaUsers key="environment" />];

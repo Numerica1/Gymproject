@@ -1143,6 +1143,8 @@ export function useHomePageContent() {
 }
 
 export type AboutPageContent = {
+  heroTitle: string;
+  heroBody: string;
   introEyebrow: string;
   introTitle: string;
   introBodyOne: string;
@@ -1153,9 +1155,37 @@ export type AboutPageContent = {
   missionBodyTwo: string;
   missionImageOne: string;
   missionImageTwo: string;
+  missionTitle: string;
+  missionBody: string;
+  visionTitle: string;
+  visionBody: string;
+  mottoText: string;
+  valuesTitle: string;
+  qualityTitle: string;
+  qualityBody: string;
+  commitmentTitle: string;
+  commitmentBody: string;
+  communityTitle: string;
+  communityBody: string;
+  integrityTitle: string;
+  integrityBody: string;
+  membersStat: string;
+  membersLabel: string;
+  trainersStat: string;
+  trainersLabel: string;
+  classesStat: string;
+  classesLabel: string;
+  yearsStat: string;
+  yearsLabel: string;
+  ctaHeading: string;
+  ctaBody: string;
+  ctaButtonLabel: string;
+  ctaButtonLink: string;
 };
 
 export const defaultAboutPageContent: AboutPageContent = {
+  heroTitle: "ABOUT US",
+  heroBody: "At FITZONE, we believe fitness is more than just workouts – it's a way of life. We are here to inspire, motivate, and help you become the strongest version of yourself.",
   introEyebrow: "Welcome to Gym Fitness Bhaktapur",
   introTitle: "Transform Your Body,\nTransform Your Life",
   introBodyOne: "Fitness Bhaktapur stands as a premier fitness destination in Nepal, dedicated to providing a comprehensive health and wellness experience. Equipped with modern strength-training gear, advanced cardiovascular machinery, and specialized zones for functional fitness, CrossFit, and yoga, we cater to all fitness levels.",
@@ -1166,6 +1196,32 @@ export const defaultAboutPageContent: AboutPageContent = {
   missionBodyTwo: "We strive to lower the barriers to high-quality health training by delivering professional coaching, safe and clean facilities, and educational resources. By fostering an inclusive environment, we encourage every member to push their limits and lead a more active, vibrant, and fulfilling life.",
   missionImageOne: "/images/calm-yoga.jpg",
   missionImageTwo: "/images/pullup-training.jpg",
+  missionTitle: "OUR MISSION",
+  missionBody: "To empower individuals to achieve their fitness goals by providing the best facilities, expert guidance, and a supportive community.",
+  visionTitle: "OUR VISION",
+  visionBody: "To be the leading fitness destination known for transforming lives and building a healthier, stronger, and happier society.",
+  mottoText: "DISCIPLINE\nTODAY\nSTRENGTH\nTOMORROW",
+  valuesTitle: "OUR VALUES",
+  qualityTitle: "QUALITY",
+  qualityBody: "We provide top-quality equipment and services to ensure the best fitness experience.",
+  commitmentTitle: "COMMITMENT",
+  commitmentBody: "We are committed to your progress and support you every step of the way.",
+  communityTitle: "COMMUNITY",
+  communityBody: "We believe in the power of community that motivates and drives results.",
+  integrityTitle: "INTEGRITY",
+  integrityBody: "We operate with honesty and transparency in everything we do.",
+  membersStat: "5000+",
+  membersLabel: "HAPPY MEMBERS",
+  trainersStat: "50+",
+  trainersLabel: "EXPERT TRAINERS",
+  classesStat: "200+",
+  classesLabel: "WEEKLY CLASSES",
+  yearsStat: "10+",
+  yearsLabel: "YEARS OF EXCELLENCE",
+  ctaHeading: "READY TO TRANSFORM YOUR LIFE?",
+  ctaBody: "Join FITZONE today and start your journey towards a stronger, healthier you!",
+  ctaButtonLabel: "JOIN NOW",
+  ctaButtonLink: "/join",
 };
 
 export function useAboutPageContent() {

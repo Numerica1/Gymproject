@@ -2,7 +2,16 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { FaArrowRight, FaChevronLeft, FaChevronRight, FaStar } from "react-icons/fa6";
+import {
+  FaArrowRight,
+  FaCalendarDays,
+  FaChevronLeft,
+  FaChevronRight,
+  FaDumbbell,
+  FaHeartPulse,
+  FaStar,
+  FaUsers,
+} from "react-icons/fa6";
 import { useGymSettings } from "../data/gymData";
 import { formatCurrency } from "../data/currency";
 
@@ -11,7 +20,7 @@ interface MembershipProps {
 }
 
 export default function Membership({ isPageHeader = false }: MembershipProps) {
-  const Heading = isPageHeader ? "h1" : "h2";
+  const Heading = "h2";
   const [content] = useGymSettings();
   const plans = content.membershipPlans;
   const [activePlan, setActivePlan] = useState(1);
@@ -30,14 +39,48 @@ export default function Membership({ isPageHeader = false }: MembershipProps) {
   };
 
   return (
-    <section id="plans" className="section pricingSection">
-      <div className="sectionHeader">
-        <p className="eyebrow dark">Membership</p>
-        <Heading className="membershipHeading">
-          <span>Choose Your Fitness Membership Plans</span>
-        </Heading>
-        <p className="membershipSubtitle">Flexible plans designed for every fitness goal and lifestyle. All memberships include full gym access and our world-class facilities.</p>
-      </div>
+    <>
+      {isPageHeader && (
+        <section className="membershipHero" aria-labelledby="membership-page-title">
+          <div className="membershipHeroOverlay" />
+          <div className="membershipHeroContent">
+            <p className="membershipHeroEyebrow">Choose Your Plan</p>
+            <h1 id="membership-page-title">Find the Right Plan for You</h1>
+            <p className="membershipHeroDescription">
+              Flexible plans designed for every fitness goal and lifestyle. All memberships include full gym access and our world-class facilities.
+            </p>
+            <div className="membershipBenefits" aria-label="Membership benefits">
+              <div className="membershipBenefit">
+                <FaUsers aria-hidden="true" />
+                <span>Expert Trainers</span>
+              </div>
+              <div className="membershipBenefit">
+                <FaDumbbell aria-hidden="true" />
+                <span>Modern Equipment</span>
+              </div>
+              <div className="membershipBenefit">
+                <FaCalendarDays aria-hidden="true" />
+                <span>Flexible Schedule</span>
+              </div>
+              <div className="membershipBenefit">
+                <FaHeartPulse aria-hidden="true" />
+                <span>Better Results</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section id="plans" className="section pricingSection">
+      {!isPageHeader && (
+        <div className="sectionHeader">
+          <p className="eyebrow dark">Choose Your Plan</p>
+          <Heading className="membershipHeading">
+            <span>Find the Right Plan for You</span>
+          </Heading>
+          <p className="membershipSubtitle">Flexible plans designed for every fitness goal and lifestyle. All memberships include full gym access and our world-class facilities.</p>
+        </div>
+      )}
 
       {/* ── Mobile carousel ── */}
       <div className="membershipShowcase" aria-label="Membership plan gallery">
@@ -111,6 +154,7 @@ export default function Membership({ isPageHeader = false }: MembershipProps) {
           ))}
         </div>
       </div>
-    </section>
+      </section>
+    </>
   );
 }
